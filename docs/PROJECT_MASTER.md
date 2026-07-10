@@ -180,6 +180,8 @@ Python 3.11+ · markitdown · PaddleOCR (pytesseract fallback) · sentence-trans
 
 **Judge one-liner:** "Growth is append-only and O(new doc); staleness can't hide because conflicting facts collide structurally at query time, and confirmed-stale content is superseded into an immutable timeline rather than deleted."
 
+**Code plane (y−) growth — live, not batch:** when code is written DURING a conversation, the code graph updates **incrementally per file-edit** — re-parse only the changed file (milliseconds), splice its symbols/edges; **stable symbol IDs** (`Function:path:name`) preserve spine `references` edges from earlier turns, so history survives edits. Deferred enrichment (LLM summaries/embeddings) is tracked with a **stale flag** and answers over stale files carry a provenance note. At session **finalization**, a full re-index + consolidation pass (dream cycle) catches cross-file effects and writes the session's changes back as a summary decision on the spine. Incremental for truth-now, batch for truth-deep. (Pattern proven in the parent Decision_Graph: `update_files` + `semantic_stale` tools.)
+
 ## M. Post-competition roadmap (the vision)
 
 The 3-plane context OS: conversation spine (x) + knowledge plane (y+, built by this project) + code plane (y−, GitNexus pattern), cross-linked with `grounds`/`references` edges, one turbovec index over all planes, exposed via MCP so Claude/Gemini/GPT share one memory. Context window becomes O(neighborhood) instead of O(history). The competition artifact is milestone zero of this product.

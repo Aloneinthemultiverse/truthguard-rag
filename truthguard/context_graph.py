@@ -49,6 +49,21 @@ class ContextGraph:
                                 extraction=c.get("extraction"))
             self.g.add_edge(nid, cid,
                             relation="references" if plane == "code" else "grounds")
+            # y− Level 2: resolve code identifiers to REAL symbols (GitNexus)
+            if plane == "code":
+                try:
+                    from . import code_link
+                    for ident in code_link.extract_identifiers(c["text"]):
+                        sym = code_link.resolve_symbol(ident)
+                        if sym:
+                            sid = f"sym:{sym['symbol']}"
+                            if not self.g.has_node(sid):
+                                self.g.add_node(sid, plane="code_symbol",
+                                                source=sym["file"],
+                                                extraction="gitnexus")
+                            self.g.add_edge(nid, sid, relation="references_symbol")
+                except Exception:
+                    pass    # symbol linking must never break recording
         self.save()
         return nid
 
@@ -96,10 +111,11 @@ class ContextGraph:
                          + (f" conf={d['confidence']}" if d.get("confidence") is not None else "")
                          + f"] {d['question'][:70]}")
             for _, v, e in self.g.out_edges(s, data=True):
-                if e["relation"] not in ("grounds", "references"):
+                if e["relation"] not in ("grounds", "references", "references_symbol"):
                     continue
                 nd = self.g.nodes[v]
-                arrow = "y+ grounds   " if e["relation"] == "grounds" else "y- references"
+                arrow = {"grounds": "y+ grounds   ", "references": "y- references",
+                         "references_symbol": "y- SYMBOL    "}[e["relation"]]
                 lines.append(f"    {arrow} -> {nd['source']} ({nd.get('extraction','')})")
         return "\n".join(lines)
 
