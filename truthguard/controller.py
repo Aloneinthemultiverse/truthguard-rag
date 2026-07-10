@@ -18,6 +18,22 @@ import re
 from . import config
 from .retrieve import retrieve
 from . import assess as assess_mod
+from .context_graph import ContextGraph
+
+_CTX_GRAPH = None
+
+def _ctx():
+    global _CTX_GRAPH
+    if _CTX_GRAPH is None:
+        _CTX_GRAPH = ContextGraph()
+    return _CTX_GRAPH
+
+
+def _record(question, response, chunks):
+    try:
+        _ctx().record_turn(question, response, chunks)
+    except Exception:
+        pass    # graph persistence must never break answering
 
 _AGG_RE = re.compile(r"\b(how many|count of|number of|total number|list all)\b", re.I)
 
@@ -123,9 +139,11 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
             f"Answer the question using the context.\nQUESTION: {question}\n\n"
             f"CONTEXT:\n{ctx}\n\nANSWER:", max_tokens=600).strip()
         trace.append({"step": "answer", "mode": "baseline"})
-        return {"kind": "answer", "text": text, "confidence": None, "band": None,
+        resp = {"kind": "answer", "text": text, "confidence": None, "band": None,
                 "citations": [_citation(c) for c in chunks[:4]], "gaps": None,
                 "clarify_options": None, "trace": trace, "llm_calls": llm.calls}
+        _record(question, resp, chunks[:6])
+        return resp
 
     # ── CORRECTED MODE ───────────────────────────────────────────────────────
     query = question if followup is None else f"{question} — {followup}"
@@ -153,11 +171,13 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
             conf = _confidence(a["sufficiency"], a["verdict"], True, chunks)
             trace.append({"step": "dual_answer"})
             cited = {cl["chunk_id"] for cl in real_conflicts[0]["claims"] if cl.get("chunk_id")}
-            return {"kind": "dual_answer", "text": text, "confidence": conf,
+            resp = {"kind": "dual_answer", "text": text, "confidence": conf,
                     "band": _band(conf),
                     "citations": [_citation(store.by_id[cid]) for cid in cited if cid in store.by_id],
                     "gaps": None, "clarify_options": None,
                     "trace": trace, "llm_calls": llm.calls}
+            _record(question, resp, chunks[:6])
+            return resp
 
         # AMBIGUOUS -> multiple-choice clarify (only once)
         if a["verdict"] == "AMBIGUOUS_QUESTION" and not clarified_once:
@@ -165,9 +185,11 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
             text = ("Your question could mean several things — which one?\n" +
                     "\n".join(f"  ({chr(65+i)}) {o}" for i, o in enumerate(opts)))
             trace.append({"step": "clarify", "options": opts})
-            return {"kind": "clarify", "text": text, "confidence": None, "band": None,
+            resp = {"kind": "clarify", "text": text, "confidence": None, "band": None,
                     "citations": [], "gaps": None, "clarify_options": opts,
                     "trace": trace, "llm_calls": llm.calls}
+            _record(question, resp, [])
+            return resp
 
         # SUFFICIENT (or PARTIAL worth answering) -> generate
         if a["verdict"] in ("SUFFICIENT", "PARTIAL") or (a["verdict"] == "AMBIGUOUS_QUESTION" and clarified_once):
@@ -181,11 +203,13 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
                     if agg_note:
                         trace.append({"step": "aggregation", "note": "count verified against retrieved chunks"})
                     trace.append({"step": "answer", "band": band})
-                    return {"kind": "answer", "text": text, "confidence": conf,
+                    resp = {"kind": "answer", "text": text, "confidence": conf,
                             "band": band,
                             "citations": [_citation(c) for c in chunks[:4]],
                             "gaps": None, "clarify_options": None,
                             "trace": trace, "llm_calls": llm.calls}
+                    _record(question, resp, chunks[:6])
+                    return resp
                 a["verdict"] = "INSUFFICIENT"   # generator itself refused
 
         # INSUFFICIENT -> rewrite and loop (max MAX_REWRITES)
@@ -208,6 +232,8 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
     text = ("I can't answer this reliably from the ingested documents.\n"
             + "\n".join(gaps))
     trace.append({"step": "refuse", "after_attempts": len(tried)})
-    return {"kind": "refusal", "text": text, "confidence": 0.0, "band": "refuse",
+    resp = {"kind": "refusal", "text": text, "confidence": 0.0, "band": "refuse",
             "citations": [], "gaps": gaps, "clarify_options": None,
             "trace": trace, "llm_calls": llm.calls}
+    _record(question, resp, [])
+    return resp
