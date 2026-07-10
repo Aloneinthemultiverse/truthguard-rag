@@ -52,12 +52,16 @@ class ChunkStore:
         engine = "numpy-float32"
         try:
             import turbovec
-            idx = turbovec.TurboQuantIndex(dim=vecs.shape[1], bits=4)
+            idx = turbovec.TurboQuantIndex(vecs.shape[1], 4)
             idx.add(vecs)
-            idx.save(os.path.join(self.storage_dir, "turbovec.idx"))
+            try:
+                idx.prepare()
+            except Exception:
+                pass
+            idx.write(os.path.join(self.storage_dir, "turbovec.idx"))
             engine = "turbovec-4bit"
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  turbovec unavailable ({e}); using numpy float32")
         with open(os.path.join(self.storage_dir, "index_meta.json"), "w") as f:
             json.dump({"engine": engine, "count": len(texts)}, f)
         self._load_indices()
@@ -87,8 +91,9 @@ class ChunkStore:
         q = self._embed([query])[0]
         if self._tv_index is not None:
             try:
-                hits = self._tv_index.search(q, k=k)
-                return [(self._ids[i], float(s)) for i, s in hits]
+                scores, idxs = self._tv_index.search(q.reshape(1, -1), k=min(k, len(self._ids)))
+                return [(self._ids[int(i)], float(s))
+                        for s, i in zip(scores[0], idxs[0])]
             except Exception:
                 pass
         sims = self._vectors @ q          # vectors normalized -> cosine
