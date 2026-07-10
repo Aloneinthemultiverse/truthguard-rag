@@ -1,0 +1,197 @@
+"""FR-1.6 — dynamic two-tier OCR ladder (per PAGE, cheapest first).
+
+  1. native text layer (pdfplumber)        -> free, most pages
+  2. Tier 1: local OCR (pytesseract or PaddleOCR, whichever is available)
+  3. accept Tier 1 if mean_conf >= 0.85 and garbage_ratio < 0.20
+  4. else escalate THIS PAGE to Tier 2 (Mistral OCR API), budget-capped
+
+Every page returns provenance: {extraction, ocr_conf, ocr_engine, escalated_because}.
+Missing engines degrade gracefully — a page that nothing can read is returned
+with extraction="failed" and conf 0.0 (downstream confidence machinery hedges).
+"""
+import os
+import re
+import io
+
+from . import config
+
+_WORD_RE = re.compile(r"[a-zA-Z]{2,}")
+_COMMON = set("the and for are with that this from have must all per not you of to in on is be as at by or it its".split())
+
+
+def _garbage_ratio(text: str) -> float:
+    """Fraction of alpha tokens that look like OCR mush (no vowels, weird caps)."""
+    tokens = _WORD_RE.findall(text)
+    if not tokens:
+        return 1.0
+    bad = 0
+    for t in tokens:
+        tl = t.lower()
+        if tl in _COMMON:
+            continue
+        if not re.search(r"[aeiouy]", tl):          # no vowels -> mush
+            bad += 1
+        elif re.search(r"[a-z][A-Z]", t):           # mid-word case flips
+            bad += 1
+    return bad / len(tokens)
+
+
+# ── page rendering (for OCR input) ──────────────────────────────────────────
+def _render_page_image(pdf_path: str, page_index: int):
+    """Return a PIL image of the page, or None. Tries pypdfium2 then PyMuPDF."""
+    try:
+        import pypdfium2 as pdfium
+        doc = pdfium.PdfDocument(pdf_path)
+        bitmap = doc[page_index].render(scale=200 / 72)
+        return bitmap.to_pil()
+    except Exception:
+        pass
+    try:
+        import fitz  # PyMuPDF
+        from PIL import Image
+        doc = fitz.open(pdf_path)
+        pix = doc[page_index].get_pixmap(dpi=200)
+        return Image.open(io.BytesIO(pix.tobytes("png")))
+    except Exception:
+        return None
+
+
+# ── Tier 1: local OCR ────────────────────────────────────────────────────────
+def _tier1_ocr(img):
+    """Returns (text, mean_conf 0-1, engine) or (None, 0.0, None)."""
+    # pytesseract first (lighter)
+    try:
+        import pytesseract, shutil, os
+        if not shutil.which("tesseract"):
+            for cand in (r"C:\Program Files\Tesseract-OCR\\tesseract.exe",
+                         r"C:\Program Files (x86)\Tesseract-OCR\\tesseract.exe"):
+                if os.path.exists(cand):
+                    pytesseract.pytesseract.tesseract_cmd = cand
+                    break
+        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+        words, confs = [], []
+        for w, c in zip(data["text"], data["conf"]):
+            if w.strip() and float(c) >= 0:
+                words.append(w)
+                confs.append(float(c))
+        if words:
+            return " ".join(words), (sum(confs) / len(confs)) / 100.0, "tesseract"
+    except Exception:
+        pass
+    # PaddleOCR fallback
+    try:
+        from paddleocr import PaddleOCR
+        import numpy as np
+        global _PADDLE
+        if "_PADDLE" not in globals():
+            _PADDLE = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        result = _PADDLE.ocr(np.array(img), cls=True)
+        lines, confs = [], []
+        for page in result or []:
+            for entry in page or []:
+                txt, conf = entry[1][0], float(entry[1][1])
+                lines.append(txt)
+                confs.append(conf)
+        if lines:
+            return "\n".join(lines), sum(confs) / len(confs), "paddleocr"
+    except Exception:
+        pass
+    return None, 0.0, None
+
+
+# ── Tier 2: Mistral OCR API ──────────────────────────────────────────────────
+_tier2_pages_used = 0
+
+def _tier2_ocr(img):
+    """Mistral OCR API on one page image. Returns (markdown_text, conf, engine) or None."""
+    global _tier2_pages_used
+    if not config.MISTRAL_OCR_API_KEY or _tier2_pages_used >= config.MAX_TIER2_PAGES:
+        return None
+    try:
+        import base64, requests
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        resp = requests.post(
+            "https://api.mistral.ai/v1/ocr",
+            headers={"Authorization": f"Bearer {config.MISTRAL_OCR_API_KEY}"},
+            json={"model": "mistral-ocr-latest",
+                  "document": {"type": "image_url",
+                               "image_url": f"data:image/png;base64,{b64}"}},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        pages = resp.json().get("pages", [])
+        text = "\n".join(p.get("markdown", "") for p in pages)
+        if text.strip():
+            _tier2_pages_used += 1
+            return text, 0.95, "mistral-ocr"
+    except Exception:
+        return None
+    return None
+
+
+# ── the ladder ───────────────────────────────────────────────────────────────
+def extract_pdf_pages(pdf_path: str) -> list:
+    """Yield one dict per page:
+    {page, text, extraction: native|ocr|failed, ocr_conf, ocr_engine,
+     escalated_because, char_fonts (native only, for code detection)}"""
+    import pdfplumber
+    pages = []
+    with pdfplumber.open(pdf_path) as pdf:
+        n_pages = len(pdf.pages)
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text() or ""
+            if len(text.strip()) > 50:
+                # native path — also collect font names per line for code detection
+                fonts = {}
+                for ch in page.chars:
+                    key = round(ch["top"])
+                    fonts.setdefault(key, set()).add(ch.get("fontname", ""))
+                pages.append({"page": i + 1, "text": text, "extraction": "native",
+                              "ocr_conf": None, "ocr_engine": None,
+                              "escalated_because": None, "line_fonts": fonts})
+                continue
+
+            # OCR needed
+            img = _render_page_image(pdf_path, i)
+            if img is None:
+                pages.append({"page": i + 1, "text": "", "extraction": "failed",
+                              "ocr_conf": 0.0, "ocr_engine": None,
+                              "escalated_because": "no_renderer", "line_fonts": None})
+                continue
+
+            t1_text, t1_conf, t1_engine = _tier1_ocr(img)
+            reason = None
+            if t1_text is None:
+                reason = "tier1_unavailable"
+            elif t1_conf < config.OCR_TIER1_MIN_CONF:
+                reason = f"low_confidence({t1_conf:.2f})"
+            elif _garbage_ratio(t1_text) >= config.OCR_GARBAGE_RATIO_MAX:
+                reason = f"garbage_ratio({_garbage_ratio(t1_text):.2f})"
+
+            if reason:
+                t2 = _tier2_ocr(img)
+                if t2:
+                    text2, conf2, engine2 = t2
+                    pages.append({"page": i + 1, "text": text2, "extraction": "ocr",
+                                  "ocr_conf": conf2, "ocr_engine": engine2,
+                                  "escalated_because": reason, "line_fonts": None})
+                    continue
+                # Tier 2 unavailable -> keep best effort with honest low conf
+                if t1_text:
+                    pages.append({"page": i + 1, "text": t1_text, "extraction": "ocr",
+                                  "ocr_conf": t1_conf, "ocr_engine": t1_engine,
+                                  "escalated_because": reason + ",tier2_unavailable",
+                                  "line_fonts": None})
+                else:
+                    pages.append({"page": i + 1, "text": "", "extraction": "failed",
+                                  "ocr_conf": 0.0, "ocr_engine": None,
+                                  "escalated_because": reason + ",tier2_unavailable",
+                                  "line_fonts": None})
+                continue
+
+            pages.append({"page": i + 1, "text": t1_text, "extraction": "ocr",
+                          "ocr_conf": t1_conf, "ocr_engine": t1_engine,
+                          "escalated_because": None, "line_fonts": None})
+    return pages

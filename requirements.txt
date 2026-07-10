@@ -1,0 +1,23 @@
+# core
+anthropic>=0.40.0
+python-dotenv>=1.0.0
+numpy>=1.24.0
+networkx>=3.0
+
+# ingestion
+pdfplumber>=0.10.0
+pypdfium2>=4.0.0
+fpdf2>=2.7.0          # corpus generator only
+pillow>=10.0.0
+pytesseract>=0.3.10   # + Tesseract binary: winget install UB-Mannheim.TesseractOCR
+# paddleocr            # optional Tier-1 alternative
+# markitdown           # optional universal converter for docx/pptx
+
+# retrieval
+sentence-transformers>=2.2.0
+rank-bm25>=0.2.2
+# turbovec             # optional quantized index (numpy fallback built in)
+
+# legacy dg-core package deps
+python-louvain>=0.16
+scikit-learn>=1.3.0

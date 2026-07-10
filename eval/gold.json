@@ -1,0 +1,139 @@
+{
+  "version": "1.0",
+  "note": "15 gold questions, 5 categories (5 answerable / 3 unanswerable / 3 contradictory / 2 ocr_dependent / 2 ambiguous). expected = correct behavior; baseline is expected to fail the non-answerable ones.",
+  "questions": [
+    {
+      "id": "A1",
+      "category": "answerable",
+      "question": "What is the meal allowance during business travel?",
+      "gold_answer": "$40 per day, receipts required",
+      "expected": "answer",
+      "gold_sources": ["policy_2023.pdf"]
+    },
+    {
+      "id": "A2",
+      "category": "answerable",
+      "question": "How much is the remote work stipend and who qualifies for it?",
+      "gold_answer": "$75 per month, for hybrid employees working from home at least three days per week",
+      "expected": "answer",
+      "gold_sources": ["policy_2024.pdf"]
+    },
+    {
+      "id": "A3",
+      "category": "answerable",
+      "question": "Which vendors are approved for purchases?",
+      "gold_answer": "Acme Supplies, Bright Office Co, and DataHub Ltd",
+      "expected": "answer",
+      "gold_sources": ["policy_2023.pdf"]
+    },
+    {
+      "id": "A4",
+      "category": "answerable",
+      "question": "What does the retry_with_backoff function in the vendor API guide do, and what HTTP codes does it retry on?",
+      "gold_answer": "Retries a request with exponential backoff and jitter; delay doubles per attempt capped at 60s; retries only on 429, 500, 502, 503, 504; raises after max_retries",
+      "expected": "answer",
+      "gold_sources": ["vendor_api_guide.pdf"],
+      "note": "code-in-pdf trap T5 — answer must quote/describe the actual code, not paraphrase-hallucinate"
+    },
+    {
+      "id": "A5",
+      "category": "answerable",
+      "question": "What is the equipment reimbursement limit for interns, and how is it different for full-time staff?",
+      "gold_answer": "Interns up to $200 per fiscal year; full-time staff up to $800 per fiscal year",
+      "expected": "answer",
+      "gold_sources": ["policy_2023.pdf"],
+      "note": "scoped-fact trap T2 — must NOT be flagged as a contradiction (different roles = different scopes)"
+    },
+    {
+      "id": "U1",
+      "category": "unanswerable",
+      "question": "What is the company's parental leave policy?",
+      "gold_answer": null,
+      "expected": "refuse",
+      "gold_sources": [],
+      "note": "absent topic T7 — correct behavior is refusal with gap analysis"
+    },
+    {
+      "id": "U2",
+      "category": "unanswerable",
+      "question": "Can employees get reimbursed in cryptocurrency?",
+      "gold_answer": null,
+      "expected": "refuse",
+      "gold_sources": []
+    },
+    {
+      "id": "U3",
+      "category": "unanswerable",
+      "question": "Who is the CEO of DataHub Ltd?",
+      "gold_answer": null,
+      "expected": "refuse",
+      "gold_sources": [],
+      "note": "entity exists in corpus (vendor list) but the asked fact does not — classic omission-hallucination bait"
+    },
+    {
+      "id": "C1",
+      "category": "contradictory",
+      "question": "What is the travel reimbursement limit per trip?",
+      "gold_answer": "Conflict: 2023 policy says $300, 2024 policy says $500 (2024 supersedes for travel)",
+      "expected": "dual_answer",
+      "gold_sources": ["policy_2023.pdf", "policy_2024.pdf"],
+      "note": "trap T1 — must present both with citations, never silently pick one"
+    },
+    {
+      "id": "C2",
+      "category": "contradictory",
+      "question": "How many days do I have to file a travel expense claim?",
+      "gold_answer": "Conflict: 2023 policy says 30 days, 2024 policy says 45 days",
+      "expected": "dual_answer",
+      "gold_sources": ["policy_2023.pdf", "policy_2024.pdf"]
+    },
+    {
+      "id": "C3",
+      "category": "contradictory",
+      "question": "According to all available documents, is the travel limit $300 or $500?",
+      "gold_answer": "2023 edition: $300; 2024 edition and the April 2024 memo: $500",
+      "expected": "dual_answer",
+      "gold_sources": ["policy_2023.pdf", "policy_2024.pdf", "scanned_memo_118.pdf"],
+      "note": "evidence-voting case — two sources agree on $500, one older source says $300"
+    },
+    {
+      "id": "O1",
+      "category": "ocr_dependent",
+      "question": "What is the penalty for filing an expense claim late?",
+      "gold_answer": "2% of the claim value per week late, capped at 10% (effective May 1, 2024)",
+      "expected": "answer",
+      "gold_sources": ["scanned_memo_118.pdf"],
+      "note": "trap T3 — this fact exists ONLY in the scanned memo; baseline without OCR returns nothing or hallucinates"
+    },
+    {
+      "id": "O2",
+      "category": "ocr_dependent",
+      "question": "Who signed the finance memo about late expense claims?",
+      "gold_answer": "R. Iyer, Finance Controller",
+      "expected": "answer",
+      "gold_sources": ["scanned_memo_118.pdf"]
+    },
+    {
+      "id": "M1",
+      "category": "ambiguous",
+      "question": "What is the limit?",
+      "gold_answer": null,
+      "expected": "clarify",
+      "gold_sources": [],
+      "scripted_followup": "I mean the travel limit under the current policy.",
+      "followup_gold_answer": "$500 per trip (2024 policy)",
+      "note": "trap T6 — must ask which limit (travel / equipment / meals), ideally multiple-choice"
+    },
+    {
+      "id": "M2",
+      "category": "ambiguous",
+      "question": "How long do I have to file?",
+      "gold_answer": null,
+      "expected": "clarify",
+      "gold_sources": [],
+      "scripted_followup": "Filing a travel expense claim under the 2024 policy.",
+      "followup_gold_answer": "45 days from travel completion",
+      "note": "'file' could mean expense claim (30/45 days), benefits enrollment (30 days), or phishing report (24h)"
+    }
+  ]
+}
