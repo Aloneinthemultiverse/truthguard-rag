@@ -4,3 +4,4 @@ __pycache__/
 storage/
 .claude/
 *.egg-info/
+context_graph_dg.html
