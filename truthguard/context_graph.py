@@ -34,6 +34,7 @@ class ContextGraph:
         self.g.graph["n_turns"] = self.g.graph.get("n_turns", 0) + 1
         self.g.add_node(nid, plane="spine", question=question[:200],
                         kind=response["kind"],
+                        text=(response.get("text") or "")[:300],
                         confidence=response.get("confidence"),
                         band=response.get("band"))
         if self._last_spine:

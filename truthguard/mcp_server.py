@@ -135,6 +135,13 @@ TOOLS = [
     types.Tool(name="graph_stats",
         description="Current 3-plane graph statistics: nodes/edges per plane, turns, communities.",
         inputSchema={"type": "object", "properties": {}}),
+    types.Tool(name="recall",
+        description="Search PAST conversation turns (DG DecisionMemory.query recipe): "
+                    "embeds the question, finds similar old turns + their topic "
+                    "communities, returns each with the documents/code it grounded on. "
+                    "Use before answering anything that might have been discussed before.",
+        inputSchema={"type": "object", "properties": {
+            "question": {"type": "string"}}, "required": ["question"]}),
     types.Tool(name="live_view_url",
         description="URL of the live auto-refreshing 3D graph view (open in a browser and keep it open while chatting).",
         inputSchema={"type": "object", "properties": {}}),
@@ -228,6 +235,11 @@ async def call_tool(name: str, args: dict):
                 {"nodes": g.number_of_nodes(), "edges": g.number_of_edges(),
                  "turns": g.graph.get("n_turns", 0),
                  "planes": dict(planes), "edge_types": dict(rels)}, indent=1))]
+
+        if name == "recall":
+            from .recall import recall, format_recall
+            return [types.TextContent(type="text",
+                    text=format_recall(recall(args["question"])))]
 
         if name == "live_view_url":
             _export_live_data()
