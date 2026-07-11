@@ -195,3 +195,40 @@ def extract_pdf_pages(pdf_path: str) -> list:
                           "ocr_conf": t1_conf, "ocr_engine": t1_engine,
                           "escalated_because": None, "line_fonts": None})
     return pages
+
+
+# ── FR-1.7: figure extraction — diagrams as first-class cited assets ─────────
+def extract_page_figures(pdf_path: str, storage_dir: str) -> list:
+    """Extract embedded images from PDF pages as figure assets:
+    cropped PNG + bbox reference point + nearby caption + OCR of the figure."""
+    import pdfplumber
+    figs = []
+    fig_dir = os.path.join(storage_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
+    with pdfplumber.open(pdf_path) as pdf:
+        n = 0
+        for i, page in enumerate(pdf.pages):
+            if not page.images:
+                continue
+            rendered = _render_page_image(pdf_path, i)
+            if rendered is None:
+                continue
+            scale = rendered.width / float(page.width)
+            text = page.extract_text() or ""
+            caption = next((l.strip() for l in text.splitlines()
+                            if l.strip().lower().startswith("figure")), "")
+            for im in page.images:
+                bbox = (int(im["x0"] * scale), int(im["top"] * scale),
+                        int(im["x1"] * scale), int(im["bottom"] * scale))
+                crop = rendered.crop(bbox)
+                if crop.width < 60 or crop.height < 60:
+                    continue    # decorative speck, not a figure
+                n += 1
+                fname = os.path.basename(pdf_path).rsplit(".", 1)[0] + f"_fig{n}.png"
+                fpath = os.path.join(fig_dir, fname)
+                crop.save(fpath)
+                ftext, conf, _eng = _tier1_ocr(crop)
+                figs.append({"page": i + 1, "figure_n": n, "image_path": fpath,
+                             "bbox": list(bbox), "caption": caption,
+                             "ocr_text": ftext or "", "ocr_conf": conf})
+    return figs

@@ -66,6 +66,9 @@ RULES:
   A policy edition/year counts as qualifier "doc_year".
 - include chunk_id for each triple
 - only facts actually stated; no inference
+- if a chunk QUOTES or refers to an old/superseded value while asserting a newer
+  one ("the 2023 policy said $300; this is now $500"), tag the old value's
+  qualifiers with "status":"superseded" and the new one with "status":"current"
 
 CHUNKS:
 {ctx}
@@ -116,6 +119,16 @@ def _detect_clashes(triples: list, chunks_by_id: dict, question: str = "") -> li
             scoped_apart = True                    # e.g. role=intern vs role=staff
         if scoped_apart:
             continue
+
+        # quotation guard (A4): a value the corpus itself marks superseded is
+        # historical context, not a live conflict — when a 'current' claim exists
+        statuses = {str((t.get("qualifiers") or {}).get("status", "")).lower() for t in ts}
+        if "superseded" in statuses and "current" in statuses:
+            live_vals = {_canon_value(str(t.get("object", ""))) for t in ts
+                         if str((t.get("qualifiers") or {}).get("status", "")).lower()
+                         != "superseded"}
+            if len(live_vals) < 2:
+                continue
 
         # evidence voting (edge case A3): OCR-only outlier vs >=2 agreeing sources
         kind = "contradiction"
@@ -176,7 +189,7 @@ PARTIAL = fragments only."""
                                                          "clarify_options": []}
 
 
-def assess(store, llm, question: str, chunks: list) -> dict:
+def assess(store, llm, question: str, chunks: list, check_contradictions: bool = True) -> dict:
     calls_before = llm.calls if llm else 0
     sufficiency = store.max_similarity(question)
 
@@ -187,8 +200,11 @@ def assess(store, llm, question: str, chunks: list) -> dict:
                 "clarify_options": [], "llm_calls": 0}
 
     chunks_by_id = {c["id"]: c for c in chunks}
-    triples = _extract_triples(llm, question, chunks)
-    contradictions = _detect_clashes(triples, chunks_by_id, question)
+    if check_contradictions:
+        triples = _extract_triples(llm, question, chunks)
+        contradictions = _detect_clashes(triples, chunks_by_id, question)
+    else:
+        contradictions = []   # clash check ran on attempt 0; rewrites re-check answerability only
     judged = _answerability(llm, question, chunks, contradictions)
 
     return {"sufficiency": round(sufficiency, 3),

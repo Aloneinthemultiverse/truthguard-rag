@@ -21,8 +21,12 @@ def _tokenize(text: str) -> list:
 class ChunkStore:
     def __init__(self, storage_dir: str = None):
         self.storage_dir = storage_dir or config.STORAGE_DIR
-        with open(os.path.join(self.storage_dir, "chunks.json"), encoding="utf-8") as f:
-            self.chunks = json.load(f)
+        cp = os.path.join(self.storage_dir, "chunks.json")
+        if os.path.exists(cp):
+            with open(cp, encoding="utf-8") as f:
+                self.chunks = json.load(f)
+        else:
+            self.chunks = []    # empty workspace: valid state, downstream refuses gracefully
         self.by_id = {c["id"]: c for c in self.chunks}
         self._embedder = None
         self._vectors = None          # numpy fallback matrix
@@ -80,7 +84,8 @@ class ChunkStore:
                 self._tv_index = None
         try:
             from rank_bm25 import BM25Okapi
-            self._bm25 = BM25Okapi([_tokenize(c["text"]) for c in self.chunks])
+            self._bm25 = (BM25Okapi([_tokenize(c["text"]) for c in self.chunks])
+                          if self.chunks else None)
         except ImportError:
             self._bm25 = None
 

@@ -44,7 +44,16 @@ def _citation(c: dict) -> str:
         tag += f" (ocr {c['ocr_conf']:.0%})"
     if c.get("content_type") == "code":
         tag += " [code block]"
+    if c.get("content_type") == "figure":
+        tag += f" [Figure {c.get('figure_n', '?')}]"
     return tag
+
+
+def _figures_used(chunks: list) -> list:
+    """Image reference points for the UI/chat: cited figures with their files."""
+    return [{"figure": f"{c['source_file']} p{c['page']} Figure {c.get('figure_n')}",
+             "image_path": c.get("image_path")}
+            for c in chunks[:6] if c.get("content_type") == "figure"]
 
 
 def _confidence(sim: float, verdict: str, has_conflict: bool, chunks: list) -> float:
@@ -122,6 +131,11 @@ def _dual_answer(contradiction: dict, question: str) -> str:
         lines.append(f"- {cl['source']} p{cl.get('page','?')}{ocr}: "
                      f"{contradiction['subject']} {contradiction['relation']} "
                      f"{cl['object']}{qual}")
+    nums = sorted({float(mm.group(0).replace(",", ""))
+                   for cl in contradiction["claims"]
+                   for mm in [re.search(r"[\d][\d,]*(?:\.\d+)?", str(cl["object"]))] if mm})
+    if len(nums) == 2:
+        lines.append(f"(Numeric difference between the two values: {nums[1] - nums[0]:g})")
     lines.append("Which context applies to you (e.g. which policy year)?")
     return "\n".join(lines)
 
@@ -146,15 +160,53 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
         return resp
 
     # ── CORRECTED MODE ───────────────────────────────────────────────────────
+    # structural routing (D11): "who calls X" answers from the code graph, zero LLM
+    m = re.search(r"\b(?:who|what)\s+calls?\s+(?:the\s+)?(\w+)", question, re.I)
+    if m:
+        from . import code_link
+        callers = code_link.callers_of(m.group(1))
+        if callers:
+            text = (f"Callers of `{m.group(1)}` (from the code graph — structural, no retrieval):\n"
+                    + "\n".join(f"- {c['name']}  ({c['file']})" for c in callers))
+            trace.append({"step": "code_graph_structural", "symbol": m.group(1)})
+            resp = {"kind": "answer", "text": text, "confidence": 1.0, "band": "high",
+                    "citations": [f"code graph: {c['file']}" for c in callers],
+                    "gaps": None, "clarify_options": None,
+                    "trace": trace, "llm_calls": llm.calls}
+            _record(question, resp, [])
+            return resp
+
+    # year guard (B5): asked about a year no document covers -> honest refusal
+    q_years = set(re.findall(r"\b(20\d\d)\b", question))
+    if q_years and store.chunks:
+        corpus_years = set()
+        for c in store.chunks:
+            corpus_years.update(re.findall(r"\b(20\d\d)\b",
+                                           c["source_file"] + " " + c["text"][:500]))
+        missing = q_years - corpus_years
+        if missing:
+            latest = max(corpus_years) if corpus_years else "?"
+            text = (f"The corpus contains no {'/'.join(sorted(missing))} documents. "
+                    f"The most recent year covered is {latest}. "
+                    f"I won't extrapolate a value for an undocumented year.")
+            trace.append({"step": "refuse", "reason": f"year(s) {sorted(missing)} not in corpus"})
+            resp = {"kind": "refusal", "text": text, "confidence": 0.0, "band": "refuse",
+                    "citations": [], "gaps": [text], "clarify_options": None,
+                    "trace": trace, "llm_calls": llm.calls}
+            _record(question, resp, [])
+            return resp
+
     query = question if followup is None else f"{question} — {followup}"
     tried = [query]
     clarified_once = followup is not None
 
+    from .llm import BudgetExceeded
     for attempt in range(config.MAX_REWRITES + 1):
+      try:
         chunks = retrieve(store, query, llm=llm if attempt == 0 else None)
         trace.append({"step": "retrieve", "query": query, "n": len(chunks)})
 
-        a = assess_mod.assess(store, llm, query, chunks)
+        a = assess_mod.assess(store, llm, query, chunks, check_contradictions=(attempt == 0))
         trace.append({"step": "assess", "verdict": a["verdict"],
                       "sufficiency": a["sufficiency"],
                       "contradictions": len(a["contradictions"])})
@@ -164,6 +216,19 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
         if ocr_suspects:
             trace.append({"step": "ocr_suspect",
                           "note": "outlier claim from OCR source flagged, excluded from conflict"})
+
+        # AMBIGUOUS -> multiple-choice clarify FIRST (an ambiguous question must
+        # be disambiguated before any conflict in the ambient context hijacks it)
+        if a["verdict"] == "AMBIGUOUS_QUESTION" and not clarified_once:
+            opts = a["clarify_options"][:4] or ["(please specify)"]
+            text = ("Your question could mean several things — which one?\n" +
+                    "\n".join(f"  ({chr(65+i)}) {o}" for i, o in enumerate(opts)))
+            trace.append({"step": "clarify", "options": opts})
+            resp = {"kind": "clarify", "text": text, "confidence": None, "band": None,
+                    "citations": [], "gaps": None, "clarify_options": opts,
+                    "trace": trace, "llm_calls": llm.calls}
+            _record(question, resp, [])
+            return resp
 
         # CONTRADICTORY -> dual answer, never arbitrate
         if real_conflicts:
@@ -177,18 +242,6 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
                     "gaps": None, "clarify_options": None,
                     "trace": trace, "llm_calls": llm.calls}
             _record(question, resp, chunks[:6])
-            return resp
-
-        # AMBIGUOUS -> multiple-choice clarify (only once)
-        if a["verdict"] == "AMBIGUOUS_QUESTION" and not clarified_once:
-            opts = a["clarify_options"][:4] or ["(please specify)"]
-            text = ("Your question could mean several things — which one?\n" +
-                    "\n".join(f"  ({chr(65+i)}) {o}" for i, o in enumerate(opts)))
-            trace.append({"step": "clarify", "options": opts})
-            resp = {"kind": "clarify", "text": text, "confidence": None, "band": None,
-                    "citations": [], "gaps": None, "clarify_options": opts,
-                    "trace": trace, "llm_calls": llm.calls}
-            _record(question, resp, [])
             return resp
 
         # SUFFICIENT (or PARTIAL worth answering) -> generate
@@ -206,6 +259,7 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
                     resp = {"kind": "answer", "text": text, "confidence": conf,
                             "band": band,
                             "citations": [_citation(c) for c in chunks[:4]],
+                            "figures": _figures_used(chunks),
                             "gaps": None, "clarify_options": None,
                             "trace": trace, "llm_calls": llm.calls}
                     _record(question, resp, chunks[:6])
@@ -225,6 +279,10 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
             query = new_q
             trace.append({"step": "rewrite", "new_query": new_q})
             continue
+        break
+      except BudgetExceeded:
+        trace.append({"step": "budget_exhausted",
+                      "note": "LLM call cap reached — degrading to refusal"})
         break
 
     # EXHAUSTED -> refusal + gap analysis

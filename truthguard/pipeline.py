@@ -85,6 +85,22 @@ def ingest_corpus(corpus_dir: str = None, storage_dir: str = None):
             seq += len(new)
             file_chunks.extend(new)
 
+        # FR-1.7: figures as first-class retrievable assets (PDFs only)
+        if ext == "pdf":
+            try:
+                for fg in ocr.extract_page_figures(path, storage_dir):
+                    file_chunks.append({
+                        "id": hashlib.sha1(f"{fname}|fig{fg['figure_n']}".encode()).hexdigest()[:12],
+                        "seq": seq, "source_file": fname, "page": fg["page"],
+                        "extraction": "figure", "ocr_conf": fg["ocr_conf"],
+                        "ocr_engine": "figure-ocr", "content_type": "figure",
+                        "language": None, "figure_n": fg["figure_n"],
+                        "image_path": fg["image_path"], "bbox": fg["bbox"],
+                        "text": (fg["caption"] + "\n" + fg["ocr_text"]).strip()})
+                    seq += 1
+            except Exception as e:
+                report["skipped"].append({"file": f"{fname} (figures)", "reason": str(e)[:80]})
+
         kept = []
         for c in file_chunks:
             h = hashlib.sha1(_norm(c["text"]).encode()).hexdigest()

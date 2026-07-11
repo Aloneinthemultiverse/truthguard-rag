@@ -19,6 +19,8 @@ def _print_response(r: dict):
     print(r["text"])
     if r.get("citations"):
         print("\nSources: " + " | ".join(r["citations"]))
+    for f in r.get("figures") or []:
+        print(f"[image reference] {f['figure']} -> {f['image_path']}")
     print("\ntrace: " + " -> ".join(
         s["step"] + (f"({s.get('verdict', s.get('new_query', ''))})"
                      if s.get("verdict") or s.get("new_query") else "")

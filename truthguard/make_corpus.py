@@ -221,3 +221,44 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def make_chart_pdf(out_dir: str = None):
+    """A PDF containing a bar chart image + caption — exercises the Figure Asset path."""
+    out_dir = out_dir or OUT
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        from fpdf import FPDF
+    except ImportError:
+        return False
+    img = Image.new("RGB", (900, 500), "white")
+    d = ImageDraw.Draw(img)
+    try:
+        big = ImageFont.truetype("arial.ttf", 34)
+        med = ImageFont.truetype("arial.ttf", 28)
+    except Exception:
+        big = med = ImageFont.load_default()
+    d.text((240, 20), "Invoice Volume by Quarter 2024", fill="black", font=big)
+    data = [("Q1", 120), ("Q2", 180), ("Q3", 90), ("Q4", 210)]
+    for i, (label, v) in enumerate(data):
+        x = 120 + i * 190
+        d.rectangle([x, 430 - v * 1.5, x + 110, 430], fill=(70, 90, 200))
+        d.text((x + 25, 435), label, fill="black", font=med)
+        d.text((x + 25, 395 - v * 1.5), str(v), fill="black", font=med)
+    png = os.path.join(out_dir, "_chart_tmp.png")
+    img.save(png)
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.multi_cell(180, 8, "Finance Portal Quarterly Report (2024)")
+    pdf.set_font("Helvetica", size=11)
+    pdf.multi_cell(180, 6, "The Finance portal processed vendor invoices throughout 2024. "
+                           "Volumes varied by quarter as shown below.")
+    pdf.image(png, x=15, y=40, w=180)
+    pdf.set_y(145)
+    pdf.multi_cell(180, 6, "Figure 1: Invoice volume by quarter, 2024 (count of invoices processed).")
+    pdf.multi_cell(180, 6, "Q4 volume reflects the year-end procurement cycle.")
+    pdf.output(os.path.join(out_dir, "quarterly_report.pdf"))
+    os.remove(png)
+    print(f"  wrote {out_dir}/quarterly_report.pdf (with embedded chart)")
+    return True
