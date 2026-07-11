@@ -1,6 +1,18 @@
 # Full-Stack Architecture — v2 (chunk-first)
 ## Self-Correcting RAG Pipeline
 
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
+
 **Supersedes v1 (graph-first).** Backbone = provenance-tagged chunks in a quantized vector index; the knowledge graph is a query-time contradiction sidecar. Components marked ★NEW are built for the competition; the rest come from dg-core or pip.
 
 ---

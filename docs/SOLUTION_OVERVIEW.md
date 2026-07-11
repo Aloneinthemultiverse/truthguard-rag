@@ -2,6 +2,18 @@
 
 ## The one-paragraph pitch
 
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
+
 Most RAG systems have one move: retrieve, then answer — confidently, every time, even when the corpus doesn't contain the answer, contradicts itself, or the relevant page is a scan the retriever never read. Our system adds a **metacognitive layer**: after every retrieval it *assesses* its own context (Is this sufficient? Do my sources disagree? Is the question even unambiguous?) and then *chooses* the honest action — answer with citations, re-query with a rewritten search, surface both sides of a contradiction, ask a clarifying question, or refuse with a gap analysis of what the corpus is missing. An ablation-style evaluation harness over a deliberately seeded messy corpus (planted contradictions, scanned-only facts, code inside PDFs, unanswerable questions) measures hallucination rates with the layer switched off vs. on — same binary, one flag.
 
 ## Why this design wins

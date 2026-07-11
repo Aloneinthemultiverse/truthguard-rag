@@ -1,6 +1,18 @@
 # Product Requirements Document (PRD) — v2
 ## Self-Correcting RAG Pipeline — "TruthGuard RAG"
 
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
+
 **Version:** 2.0 (chunk-first redesign) · **Date:** 2026-07-08 · **Status:** Locked for build
 **Base:** dg-core (DecisionGraph memory core) · **Supersedes:** v1 (graph-first design)
 **Changes from v1:** knowledge graph demoted from ingest-time co-primary index to query-time contradiction sidecar; markitdown replaces document_handlers as front door; PaddleOCR (confidence-tagged) replaces bare pytesseract; turbovec replaces hand-rolled quantization; added rerank, superposed multi-query, gap-analysis refusals, code-in-PDF handling.

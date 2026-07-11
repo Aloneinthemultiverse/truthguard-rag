@@ -1,8 +1,21 @@
 # SUBMISSION BUNDLE — Self-Correcting RAG (Problem Statement 1, AI Engineer track)
 
 ---
+
 # Product Requirements Document (PRD) — v2
 ## Self-Correcting RAG Pipeline — "TruthGuard RAG"
+
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
 
 **Version:** 2.0 (chunk-first redesign) · **Date:** 2026-07-08 · **Status:** Locked for build
 **Base:** dg-core (DecisionGraph memory core) · **Supersedes:** v1 (graph-first design)
@@ -153,9 +166,24 @@ Post-M5 upgrades only if time: superposed multi-query, rerank tuning, `--build-g
 4. GraphRAG vs plain RAG → chunk-first backbone; graph = query-time contradiction sidecar only.
 5. Quantization → turbovec (adopted); 0xsero/turboquant rejected (KV-cache/inference domain, not document retrieval).
 
+
+
 ---
+
 # Full-Stack Architecture — v2 (chunk-first)
 ## Self-Correcting RAG Pipeline
+
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
 
 **Supersedes v1 (graph-first).** Backbone = provenance-tagged chunks in a quantized vector index; the knowledge graph is a query-time contradiction sidecar. Components marked ★NEW are built for the competition; the rest come from dg-core or pip.
 
@@ -339,10 +367,25 @@ Judgment    {label: correct|hallucinated|correctly_refused|
 
 This build constructs the **knowledge plane (y+)**: provenance chunks + turbovec + decision memory. Adding a conversation spine (x) and a GitNexus-style code plane (y−), cross-linked `grounds`/`references`, exposed over MCP so any model shares one memory → the context OS where the window holds O(neighborhood) instead of O(history). Captured separately; zero competition scope.
 
+
+
 ---
+
 # Solution Overview — Self-Correcting RAG Pipeline (v2)
 
 ## The one-paragraph pitch
+
+
+> **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
+> Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
+> zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
+> the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
+> recipe: 41 y+ semantic communities, 5 x topic communities, GitNexus y− clusters),
+> GitNexus symbol linking with zero-LLM structural answers, and 2D + 3D interactive
+> graph visualizations (`truthguard/viz.py`, `viz3d.py`).
+
 
 Most RAG systems have one move: retrieve, then answer — confidently, every time, even when the corpus doesn't contain the answer, contradicts itself, or the relevant page is a scan the retriever never read. Our system adds a **metacognitive layer**: after every retrieval it *assesses* its own context (Is this sufficient? Do my sources disagree? Is the question even unambiguous?) and then *chooses* the honest action — answer with citations, re-query with a rewritten search, surface both sides of a contradiction, ask a clarifying question, or refuse with a gap analysis of what the corpus is missing. An ablation-style evaluation harness over a deliberately seeded messy corpus (planted contradictions, scanned-only facts, code inside PDFs, unanswerable questions) measures hallucination rates with the layer switched off vs. on — same binary, one flag.
 
@@ -425,7 +468,10 @@ The substrate is **dg-core** — the memory engine extracted from the DecisionGr
 
 This build is milestone zero of the 3-plane context OS: the provenance chunk store + turbovec + decision memory **is** the knowledge plane (y+). Adding a conversation spine (x) and a GitNexus-style code plane (y−), cross-linked and exposed over MCP so Claude/Gemini/GPT share one memory, turns the competition artifact into a system where the context window holds a neighborhood, not a history.
 
+
+
 ---
+
 # PROJECT MASTER — Self-Correcting RAG ("TruthGuard RAG")
 ### The complete A→Z of everything we've designed
 
@@ -608,6 +654,41 @@ Python 3.11+ · markitdown · PaddleOCR (pytesseract fallback) · sentence-trans
 
 **Judge one-liner:** "Growth is append-only and O(new doc); staleness can't hide because conflicting facts collide structurally at query time, and confirmed-stale content is superseded into an immutable timeline rather than deleted."
 
-## M. Post-competition roadmap (the vision)
+**Code plane (y−) growth — live, not batch:** when code is written DURING a conversation, the code graph updates **incrementally per file-edit** — re-parse only the changed file (milliseconds), splice its symbols/edges; **stable symbol IDs** (`Function:path:name`) preserve spine `references` edges from earlier turns, so history survives edits. Deferred enrichment (LLM summaries/embeddings) is tracked with a **stale flag** and answers over stale files carry a provenance note. At session **finalization**, a full re-index + consolidation pass (dream cycle) catches cross-file effects and writes the session's changes back as a summary decision on the spine. Incremental for truth-now, batch for truth-deep. (Pattern proven in the parent Decision_Graph: `update_files` + `semantic_stale` tools.)
+
+## M. Build-sprint results (implemented & measured, July 10–11)
+
+**Pipeline:** all milestones M1–M6 built and live-tested. **Eval (true ablation):
+hallucination 20%→7%, correct behavior 67%→93%, silent arbitration 3/3→0/3,
+ambiguous clarification 0/2→2/2.** Hard-test battery (15 adversarial cases +
+injection + empty-corpus + code-freshness): zero fabrications; the planted
+injection value ($9,999) never appeared in any answer.
+
+**Three planes, each built with DecisionGraph's own recipe, cross-wired:**
+y+ = dg-core pipeline verbatim (72 triples → 108 resolved entities → 41 Louvain
+communities with LLM summaries, DG storage format — DG's `beam_query` runs on it
+unchanged); x = conversation-topic communities (4 topics over 23 turns, DG
+compile_topic style); y− = GitNexus code clusters + `calls` edges + stable symbol
+IDs; cross-plane `grounds`/`references`/`references_symbol`/`member_of` edges.
+Figures are first-class cited assets (bbox + caption + OCR, `[Figure N]`
+citations, image paths returned for UI display).
+
+**Key architectural finding:** raw DG semantic beam search ranked the injection
+poison FIRST (community "$9,999 travel limit", sim 0.702) — while the corrected
+pipeline never leaked it. This empirically validates the core design decision:
+the knowledge graph serves retrieval/contradiction-detection BEHIND the
+assessment gate, never as an unguarded answer source.
+
+**Known limitations (honest):** tiny-corpus community over-fragmentation (41
+communities/108 entities; self-heals at scale with min_size=5); 2 garbled
+community summaries from noisy triples; retro re-OCR (FR-1.6b) designed but not
+implemented; Mistral OCR Tier-2 wired but untested (no key); multi-hop reasoning
+degrades to honest refusal.
+
+## N. Post-competition roadmap (the vision)
 
 The 3-plane context OS: conversation spine (x) + knowledge plane (y+, built by this project) + code plane (y−, GitNexus pattern), cross-linked with `grounds`/`references` edges, one turbovec index over all planes, exposed via MCP so Claude/Gemini/GPT share one memory. Context window becomes O(neighborhood) instead of O(history). The competition artifact is milestone zero of this product.
+
+
+
+---
