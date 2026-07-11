@@ -1,14 +1,13 @@
 # SUBMISSION BUNDLE — Self-Correcting RAG (Problem Statement 1, AI Engineer track)
 
 ---
-
 # Product Requirements Document (PRD) — v2
 ## Self-Correcting RAG Pipeline — "TruthGuard RAG"
 
 
 > **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
 > Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
-> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→87%, silent
 > arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
 > zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
 > the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
@@ -166,17 +165,14 @@ Post-M5 upgrades only if time: superposed multi-query, rerank tuning, `--build-g
 4. GraphRAG vs plain RAG → chunk-first backbone; graph = query-time contradiction sidecar only.
 5. Quantization → turbovec (adopted); 0xsero/turboquant rejected (KV-cache/inference domain, not document retrieval).
 
-
-
 ---
-
 # Full-Stack Architecture — v2 (chunk-first)
 ## Self-Correcting RAG Pipeline
 
 
 > **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
 > Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
-> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→87%, silent
 > arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
 > zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
 > the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
@@ -367,10 +363,7 @@ Judgment    {label: correct|hallucinated|correctly_refused|
 
 This build constructs the **knowledge plane (y+)**: provenance chunks + turbovec + decision memory. Adding a conversation spine (x) and a GitNexus-style code plane (y−), cross-linked `grounds`/`references`, exposed over MCP so any model shares one memory → the context OS where the window holds O(neighborhood) instead of O(history). Captured separately; zero competition scope.
 
-
-
 ---
-
 # Solution Overview — Self-Correcting RAG Pipeline (v2)
 
 ## The one-paragraph pitch
@@ -378,7 +371,7 @@ This build constructs the **knowledge plane (y+)**: provenance chunks + turbovec
 
 > **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
 > Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
-> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→87%, silent
 > arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
 > zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
 > the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
@@ -468,10 +461,7 @@ The substrate is **dg-core** — the memory engine extracted from the DecisionGr
 
 This build is milestone zero of the 3-plane context OS: the provenance chunk store + turbovec + decision memory **is** the knowledge plane (y+). Adding a conversation spine (x) and a GitNexus-style code plane (y−), cross-linked and exposed over MCP so Claude/Gemini/GPT share one memory, turns the competition artifact into a system where the context window holds a neighborhood, not a history.
 
-
-
 ---
-
 # PROJECT MASTER — Self-Correcting RAG ("TruthGuard RAG")
 ### The complete A→Z of everything we've designed
 
@@ -659,7 +649,7 @@ Python 3.11+ · markitdown · PaddleOCR (pytesseract fallback) · sentence-trans
 ## M. Build-sprint results (implemented & measured, July 10–11)
 
 **Pipeline:** all milestones M1–M6 built and live-tested. **Eval (true ablation):
-hallucination 20%→7%, correct behavior 67%→93%, silent arbitration 3/3→0/3,
+hallucination 20%→7%, correct behavior 67%→87%, silent arbitration 3/3→0/3,
 ambiguous clarification 0/2→2/2.** Hard-test battery (15 adversarial cases +
 injection + empty-corpus + code-freshness): zero fabrications; the planted
 injection value ($9,999) never appeared in any answer.
@@ -688,7 +678,5 @@ degrades to honest refusal.
 ## N. Post-competition roadmap (the vision)
 
 The 3-plane context OS: conversation spine (x) + knowledge plane (y+, built by this project) + code plane (y−, GitNexus pattern), cross-linked with `grounds`/`references` edges, one turbovec index over all planes, exposed via MCP so Claude/Gemini/GPT share one memory. Context window becomes O(neighborhood) instead of O(history). The competition artifact is milestone zero of this product.
-
-
 
 ---

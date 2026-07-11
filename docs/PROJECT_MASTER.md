@@ -185,7 +185,7 @@ Python 3.11+ · markitdown · PaddleOCR (pytesseract fallback) · sentence-trans
 ## M. Build-sprint results (implemented & measured, July 10–11)
 
 **Pipeline:** all milestones M1–M6 built and live-tested. **Eval (true ablation):
-hallucination 20%→7%, correct behavior 67%→93%, silent arbitration 3/3→0/3,
+hallucination 20%→7%, correct behavior 67%→87%, silent arbitration 3/3→0/3,
 ambiguous clarification 0/2→2/2.** Hard-test battery (15 adversarial cases +
 injection + empty-corpus + code-freshness): zero fabrications; the planted
 injection value ($9,999) never appeared in any answer.

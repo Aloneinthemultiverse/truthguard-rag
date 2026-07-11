@@ -4,7 +4,7 @@
 
 > **IMPLEMENTATION STATUS (July 11):** this design is BUILT and MEASURED — not a proposal.
 > Working system in `truthguard/` (repo: github.com/Aloneinthemultiverse/truthguard-rag).
-> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→93%, silent
+> Eval via one-flag ablation: **hallucination 20%→7%, correct behavior 67%→87%, silent
 > arbitration 3/3→0/3**. Hard-test battery (15 adversarial cases incl. prompt injection):
 > zero fabrications. Implemented beyond the plan: figure/image references (FR-1.7),
 > the 3-plane Session Context Graph (each plane built with DecisionGraph's own community
