@@ -52,24 +52,51 @@ def recall(question: str, top_k: int = 3, storage_dir: str = None) -> dict:
                               "similarity": round(float(sims[i]), 3),
                               "n_turns": g.in_degree(n)})
 
-    # 2) similarity over individual turn questions (DecisionMemory.query verbatim)
-    tvecs = em.encode([d["question"] for _, d in turns], normalize_embeddings=True)
+    # 2) DG DecisionMemory.query, complete: lazy decay -> active only ->
+    #    score = sim x confidence -> access bookkeeping on retrieval
+    from datetime import datetime, timedelta
+    today = datetime.now().date().isoformat()
+    if g.graph.get("last_decay_run") != today:            # decay_confidence, lazy 1x/day
+        cutoff = datetime.now() - timedelta(days=90)
+        for n, d in turns:
+            ref = d.get("last_accessed") or ""
+            try:
+                last = datetime.fromisoformat(ref) if ref else datetime.now()
+            except ValueError:
+                last = datetime.now()
+            if last < cutoff and d.get("is_active", True):
+                d["confidence"] = max(0.0, round(d.get("confidence", 1.0) - 0.1, 3))
+                if d["confidence"] < 0.2:
+                    d["is_active"] = False
+        g.graph["last_decay_run"] = today
+
+    active = [(n, d) for n, d in turns if d.get("is_active", True)]
+    tvecs = em.encode([d["question"] for _, d in active], normalize_embeddings=True)
     sims = np.asarray(tvecs) @ q
+    scored = sorted(
+        ((float(sims[i]) * float(active[i][1].get("confidence", 1.0)), float(sims[i]), i)
+         for i in range(len(active))), reverse=True)
     matches = []
-    for i in np.argsort(sims)[::-1][:top_k]:
-        if float(sims[i]) < 0.35:      # DG's DECISION_SIMILARITY_THRESHOLD spirit
+    for score, sim, i in scored[:top_k]:
+        if sim < 0.35:                 # DG's DECISION_SIMILARITY_THRESHOLD spirit
             continue
-        n, d = turns[i]
+        n, d = active[i]
+        d["access_count"] = d.get("access_count", 0) + 1   # access_decision()
+        d["last_accessed"] = datetime.now().isoformat()
         nb = cg.neighborhood(spine_id=n, hops_back=1)
         matches.append({
             "turn": n,
-            "similarity": round(float(sims[i]), 3),
+            "similarity": round(sim, 3),
+            "score": round(score, 3),
+            "confidence": d.get("confidence", 1.0),
+            "access_count": d["access_count"],
             "question": d["question"],
             "kind": d.get("kind"),
             "answer_preview": (d.get("text") or "")[:200],
             "grounded_on": nb["knowledge"][:5],
             "code_touched": nb["code"][:5],
         })
+    cg.save()
     return {"matches": matches, "communities": comm_hits}
 
 
