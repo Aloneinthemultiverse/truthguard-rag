@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>TruthGuard LIVE — 3-Plane Graph</title>
+<style>
+body{margin:0;background:#05070f;color:#c9d1d9;font-family:system-ui}
+#hud{position:absolute;top:10px;left:14px;z-index:9;background:#0d1117cc;padding:10px 14px;border-radius:10px;font-size:12px;border:1px solid #30363d}
+#hud b{color:#e3b341} #stat{color:#39d2c0;font-weight:700}
+</style></head><body>
+<div id="hud"><b>TruthGuard — LIVE 3-Plane Graph</b> <span id="stat">connecting…</span><br>
+grows while you chat (polls every 4s, camera preserved) · drag=rotate · scroll=zoom · right-drag=pan<br>
+<span style="color:#39d2c0">&#9632; y+ knowledge</span>
+<span style="color:#bc8cff">&#9632; x spine</span> (<span style="color:#2ecc71">answer</span>/<span style="color:#e74c3c">refusal</span>/<span style="color:#e67e22">dual</span>/<span style="color:#f1c40f">clarify</span>)
+<span style="color:#ffa657">&#9632; y− code</span>
+<span style="color:#e3b341">&#9632; communities</span></div>
+<div id="g"></div>
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script>
+const G = ForceGraph3D()(document.getElementById('g'))
+  .backgroundColor('#05070f').nodeLabel('name').nodeColor('color')
+  .nodeVal('val').linkColor('color')
+  .linkWidth(l => l.w * 0.6).linkOpacity(0.45)
+  .linkDirectionalParticles(l => l.name === 'grounds' ? 0 : 1)
+  .linkDirectionalParticleWidth(1.2)
+  .onNodeClick(n => G.cameraPosition({x:n.x*1.2,y:n.y*1.2,z:(n.z||0)+120}, n, 900));
+
+let known = new Set();
+async function poll(){
+  try{
+    const r = await fetch('graph3d_data.json?t=' + Date.now());
+    const data = await r.json();
+    const ids = new Set(data.nodes.map(n=>n.id));
+    const grew = data.nodes.length !== known.size || [...ids].some(i=>!known.has(i));
+    if (grew){
+      // preserve positions of existing nodes so the view doesn't jump
+      const cur = Object.fromEntries(G.graphData().nodes.map(n=>[n.id,n]));
+      data.nodes.forEach(n=>{ const o=cur[n.id]; if(o){n.x=o.x;n.y=o.y;n.z=o.z;} });
+      G.graphData(data);
+      known = ids;
+      document.getElementById('stat').textContent =
+        `· ${data.nodes.length} nodes / ${data.links.length} edges (updated ${new Date().toLocaleTimeString()})`;
+    }
+  }catch(e){
+    document.getElementById('stat').textContent = '· waiting for MCP server…';
+  }
+}
+poll(); setInterval(poll, 4000);
+</script></body></html>
