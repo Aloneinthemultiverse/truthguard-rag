@@ -182,6 +182,35 @@ Python 3.11+ · markitdown · PaddleOCR (pytesseract fallback) · sentence-trans
 
 **Code plane (y−) growth — live, not batch:** when code is written DURING a conversation, the code graph updates **incrementally per file-edit** — re-parse only the changed file (milliseconds), splice its symbols/edges; **stable symbol IDs** (`Function:path:name`) preserve spine `references` edges from earlier turns, so history survives edits. Deferred enrichment (LLM summaries/embeddings) is tracked with a **stale flag** and answers over stale files carry a provenance note. At session **finalization**, a full re-index + consolidation pass (dream cycle) catches cross-file effects and writes the session's changes back as a summary decision on the spine. Incremental for truth-now, batch for truth-deep. (Pattern proven in the parent Decision_Graph: `update_files` + `semantic_stale` tools.)
 
-## M. Post-competition roadmap (the vision)
+## M. Build-sprint results (implemented & measured, July 10–11)
+
+**Pipeline:** all milestones M1–M6 built and live-tested. **Eval (true ablation):
+hallucination 20%→7%, correct behavior 67%→93%, silent arbitration 3/3→0/3,
+ambiguous clarification 0/2→2/2.** Hard-test battery (15 adversarial cases +
+injection + empty-corpus + code-freshness): zero fabrications; the planted
+injection value ($9,999) never appeared in any answer.
+
+**Three planes, each built with DecisionGraph's own recipe, cross-wired:**
+y+ = dg-core pipeline verbatim (72 triples → 108 resolved entities → 41 Louvain
+communities with LLM summaries, DG storage format — DG's `beam_query` runs on it
+unchanged); x = conversation-topic communities (4 topics over 23 turns, DG
+compile_topic style); y− = GitNexus code clusters + `calls` edges + stable symbol
+IDs; cross-plane `grounds`/`references`/`references_symbol`/`member_of` edges.
+Figures are first-class cited assets (bbox + caption + OCR, `[Figure N]`
+citations, image paths returned for UI display).
+
+**Key architectural finding:** raw DG semantic beam search ranked the injection
+poison FIRST (community "$9,999 travel limit", sim 0.702) — while the corrected
+pipeline never leaked it. This empirically validates the core design decision:
+the knowledge graph serves retrieval/contradiction-detection BEHIND the
+assessment gate, never as an unguarded answer source.
+
+**Known limitations (honest):** tiny-corpus community over-fragmentation (41
+communities/108 entities; self-heals at scale with min_size=5); 2 garbled
+community summaries from noisy triples; retro re-OCR (FR-1.6b) designed but not
+implemented; Mistral OCR Tier-2 wired but untested (no key); multi-hop reasoning
+degrades to honest refusal.
+
+## N. Post-competition roadmap (the vision)
 
 The 3-plane context OS: conversation spine (x) + knowledge plane (y+, built by this project) + code plane (y−, GitNexus pattern), cross-linked with `grounds`/`references` edges, one turbovec index over all planes, exposed via MCP so Claude/Gemini/GPT share one memory. Context window becomes O(neighborhood) instead of O(history). The competition artifact is milestone zero of this product.

@@ -85,7 +85,7 @@ class ContextGraph:
             for _, v, d in self.g.out_edges(s, data=True):
                 if d.get("relation") == "grounds":
                     knowledge.add(self.g.nodes[v]["source"])
-                elif d.get("relation") == "references":
+                elif d.get("relation") in ("references", "references_symbol"):
                     code.add(self.g.nodes[v]["source"])
         return {"spine": [dict(self.g.nodes[s], id=s) for s in spine],
                 "knowledge": sorted(knowledge), "code": sorted(code)}
