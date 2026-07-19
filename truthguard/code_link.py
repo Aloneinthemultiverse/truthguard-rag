@@ -55,6 +55,50 @@ def resolve_symbol(identifier: str):
     return result
 
 
+def _rows(md: str, skip: tuple) -> list:
+    out = []
+    for r in (md or "").splitlines():
+        cells = [c.strip() for c in r.split("|") if c.strip()]
+        if len(cells) == 2 and cells[0] not in skip and not set(cells[0]) <= set("-"):
+            out.append({"name": cells[0], "file": cells[1]})
+    return out
+
+
+def callees_of(identifier: str) -> list:
+    """Structural: what does this function call? (zero LLM)"""
+    md = _cypher(f"MATCH (f:Function {{name:'{identifier}'}})-"
+                 f"[:CodeRelation {{type:'CALLS'}}]->(b) RETURN b.name, b.filePath")
+    return _rows(md, ("b.name",))
+
+
+def imports_of(file_path: str) -> list:
+    """Structural: what does this file import? (zero LLM)"""
+    md = _cypher(f"MATCH (f:File)-[:CodeRelation {{type:'IMPORTS'}}]->(m) "
+                 f"WHERE f.filePath CONTAINS '{file_path}' RETURN m.name, m.filePath")
+    return _rows(md, ("m.name",))
+
+
+def symbol_info(identifier: str) -> dict:
+    """Full structural card: definition body + callers + callees. One call,
+    zero LLM — the y- traversal endpoint the MCP exposes as query_code."""
+    info = {"symbol": identifier, "resolved": resolve_symbol(identifier),
+            "callers": callers_of(identifier), "callees": callees_of(identifier),
+            "definition": None}
+    try:
+        import json as _json
+        from . import config
+        p = os.path.join(config.STORAGE_DIR, "code_digest.json")
+        if os.path.exists(p):
+            for s in _json.load(open(p, encoding="utf-8")):
+                if s["symbol"] == identifier:
+                    info["definition"] = {"file": s["file"], "lineno": s["lineno"],
+                                          "kind": s["kind"], "text": s["text"][:1200]}
+                    break
+    except Exception:
+        pass
+    return info
+
+
 def callers_of(identifier: str) -> list:
     """Structural follow-up: who calls this function? (zero LLM)"""
     md = _cypher(f"MATCH (a)-[:CodeRelation {{type:'CALLS'}}]->"

@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><title>TruthGuard — Full 3-Plane (live)</title>
+<style>body{margin:0;background:#05070f;color:#c9d1d9;font-family:system-ui}
+#hud{position:absolute;top:10px;left:14px;z-index:9;background:#0d1117e0;padding:11px 15px;border-radius:10px;font-size:12px;border:1px solid #30363d;max-width:720px}
+#hud b{color:#fff} #stat{color:#39d2c0;font-weight:700}</style></head><body>
+<div id="hud"><b>TruthGuard — FULL 3-Plane Context Graph (LIVE)</b> <span id="stat"></span><br>
+documents (entities) + code (.py) + chat — grows as you chat via MCP<br>
+drag=rotate 360&deg; | scroll=zoom | right-drag=pan | hover | click=fly in<br>
+<span style="color:#39d2c0">&#9632; doc entities (top)</span>
+<span style="color:#bc8cff">&#9632; chat (mid)</span>
+<span style="color:#ff8c42">&#9632; code (bottom)</span>
+<span style="color:#ff2d55">&mdash; edited</span> <span style="color:#ff7b72">&mdash; calls</span> <span style="color:#8a63d2">&mdash; follows</span></div>
+<div id="g"></div>
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script>
+const G=ForceGraph3D()(document.getElementById('g'))
+ .backgroundColor('#05070f').nodeLabel('name').nodeColor('color').nodeVal('val')
+ .linkColor('color').linkWidth(l=>l.w*0.5).linkOpacity(0.5)
+ .linkDirectionalParticles(l=>l.name==='edited'||l.name==='calls'?2:0).linkDirectionalParticleWidth(1.4)
+ .onNodeClick(n=>G.cameraPosition({x:n.x*1.15,y:n.y*1.15,z:(n.z||0)+110},n,900));
+let known=0, spin=true;
+async function poll(){
+ try{
+  const d=await (await fetch('graph3d_data.json?t='+Date.now())).json();
+  if(d.nodes.length!==known){
+   const cur=Object.fromEntries(G.graphData().nodes.map(n=>[n.id,n]));
+   d.nodes.forEach(n=>{const o=cur[n.id]; if(o){n.x=o.x;n.y=o.y;n.z=o.z;}});
+   G.graphData(d); known=d.nodes.length;
+   document.getElementById('stat').textContent=`· ${d.nodes.length} nodes / ${d.links.length} edges — ${new Date().toLocaleTimeString()}`;
+  }
+ }catch(e){document.getElementById('stat').textContent='· waiting for MCP…';}
+}
+poll(); setInterval(poll,4000);
+let a=0;const t=setInterval(()=>{if(!spin)return clearInterval(t);a+=0.24;
+ G.cameraPosition({x:760*Math.sin(a*Math.PI/180),z:760*Math.cos(a*Math.PI/180),y:15});},40);
+document.getElementById('g').addEventListener('pointerdown',()=>spin=false,{once:true});
+</script></body></html>

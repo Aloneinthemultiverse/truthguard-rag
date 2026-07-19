@@ -11,9 +11,18 @@ class BudgetExceeded(Exception):
 
 class LLM:
     def __init__(self):
-        import anthropic
-        self.client = anthropic.Anthropic(
-            base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+        # LLM_PROVIDER: "anthropic" (default) or "openai" (NVIDIA NIM, OpenAI, any
+        # OpenAI-compatible /v1/chat/completions endpoint).
+        self.provider = getattr(config, "LLM_PROVIDER", "anthropic").lower()
+        if self.provider in ("openai", "nim", "nvidia"):
+            import openai
+            self.client = openai.OpenAI(
+                base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+            self.provider = "openai"
+        else:
+            import anthropic
+            self.client = anthropic.Anthropic(
+                base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
         self.calls = 0
 
     def reset_budget(self):
@@ -23,16 +32,31 @@ class LLM:
         if self.calls >= config.MAX_LLM_CALLS_PER_QUERY:
             raise BudgetExceeded(f"LLM call budget ({config.MAX_LLM_CALLS_PER_QUERY}) exhausted")
         self.calls += 1
-        # proxied thinking models (gemini) consume max_tokens on internal reasoning
-        # BEFORE emitting text — responses come back empty or truncated mid-sentence.
-        # Use a large floor and retry with doubled budget on empty/truncated output.
         max_tokens = max(max_tokens * 4, 3000)
         for attempt in range(3):
-            resp = self.client.messages.create(
-                model=config.LLM_MODEL, max_tokens=max_tokens, temperature=temperature,
-                messages=[{"role": "user", "content": prompt}])
-            text = "".join(b.text for b in resp.content if b.type == "text").strip()
-            truncated = getattr(resp, "stop_reason", None) == "max_tokens"
+            if self.provider == "openai":
+                import time
+                for backoff in (0, 20, 45, 90):        # ride out 429 rate limits
+                    if backoff:
+                        time.sleep(backoff)
+                    try:
+                        resp = self.client.chat.completions.create(
+                            model=config.LLM_MODEL, max_tokens=max_tokens, temperature=temperature,
+                            messages=[{"role": "user", "content": prompt}])
+                        break
+                    except Exception as e:
+                        if "429" not in str(e) or backoff == 90:
+                            raise
+                text = (resp.choices[0].message.content or "").strip()
+                truncated = resp.choices[0].finish_reason == "length"
+            else:
+                # proxied thinking models (gemini) consume max_tokens on internal
+                # reasoning before emitting text — retry with doubled budget on empty.
+                resp = self.client.messages.create(
+                    model=config.LLM_MODEL, max_tokens=max_tokens, temperature=temperature,
+                    messages=[{"role": "user", "content": prompt}])
+                text = "".join(b.text for b in resp.content if b.type == "text").strip()
+                truncated = getattr(resp, "stop_reason", None) == "max_tokens"
             if text and not truncated:
                 return text
             max_tokens = min(max_tokens * 2, 16000)

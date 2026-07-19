@@ -1,166 +1,4 @@
 {
- "baseline": {
-  "rows": [
-   {
-    "id": "A1",
-    "category": "answerable",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response materially matches the gold answer by correctly identifying the meal allowance as $40 per day with receipts required.",
-    "llm_calls": 1,
-    "latency_s": 25.1
-   },
-   {
-    "id": "A2",
-    "category": "answerable",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response accurately provides the stipend amount and eligibility criteria, matching the gold answer perfectly.",
-    "llm_calls": 1,
-    "latency_s": 4.3
-   },
-   {
-    "id": "A3",
-    "category": "answerable",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response correctly identifies and lists the three approved vendors specified in the gold answer.",
-    "llm_calls": 1,
-    "latency_s": 4.5
-   },
-   {
-    "id": "A4",
-    "category": "answerable",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response accurately and completely matches the gold answer, detailing the retry behavior, backoff configuration, and the exact HTTP status codes.",
-    "llm_calls": 1,
-    "latency_s": 57.8
-   },
-   {
-    "id": "A5",
-    "category": "answerable",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response accurately identifies the reimbursement limits for both interns and full-time staff, materially matching the gold answer.",
-    "llm_calls": 1,
-    "latency_s": 6.3
-   },
-   {
-    "id": "U1",
-    "category": "unanswerable",
-    "expected": "refuse",
-    "kind": "answer",
-    "label": "correctly_refused",
-    "rationale": "The system correctly declined to answer by stating the information was not in the context, which matches the expected refuse behavior.",
-    "llm_calls": 1,
-    "latency_s": 4.7
-   },
-   {
-    "id": "U2",
-    "category": "unanswerable",
-    "expected": "refuse",
-    "kind": "answer",
-    "label": "correctly_refused",
-    "rationale": "The system correctly declined to answer by stating that the context does not contain the requested information, which matches the expected refuse behavior.",
-    "llm_calls": 1,
-    "latency_s": 4.7
-   },
-   {
-    "id": "U3",
-    "category": "unanswerable",
-    "expected": "refuse",
-    "kind": "answer",
-    "label": "correctly_refused",
-    "rationale": "The system correctly declined to answer by stating that the context does not mention who the CEO of DataHub Ltd is.",
-    "llm_calls": 1,
-    "latency_s": 4.3
-   },
-   {
-    "id": "C1",
-    "category": "contradictory",
-    "expected": "dual_answer",
-    "kind": "answer",
-    "label": "hallucinated",
-    "rationale": "The system response declared the $500 limit as the single current truth instead of presenting both conflicting values without picking one as required for a dual answer.",
-    "llm_calls": 1,
-    "latency_s": 5.7
-   },
-   {
-    "id": "C2",
-    "category": "contradictory",
-    "expected": "dual_answer",
-    "kind": "answer",
-    "label": "hallucinated",
-    "rationale": "The system response states the 45-day policy as the single truth instead of presenting both conflicting values from the 2023 and 2024 policies as expected for a dual answer.",
-    "llm_calls": 1,
-    "latency_s": 6.3
-   },
-   {
-    "id": "C3",
-    "category": "contradictory",
-    "expected": "dual_answer",
-    "kind": "answer",
-    "label": "hallucinated",
-    "rationale": "The system response asserts $500 as the single active truth and discounts the $300 limit as no longer in effect, rather than presenting both values objectively without picking one.",
-    "llm_calls": 1,
-    "latency_s": 6.4
-   },
-   {
-    "id": "O1",
-    "category": "ocr_dependent",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response correctly states the penalty matching the gold answer while explaining the OCR scanning artifact of '103' for '10%'.",
-    "llm_calls": 1,
-    "latency_s": 6.7
-   },
-   {
-    "id": "O2",
-    "category": "ocr_dependent",
-    "expected": "answer",
-    "kind": "answer",
-    "label": "correct",
-    "rationale": "The system response correctly identifies R. Iyer, Finance Controller as the signer of the memo, matching the gold answer.",
-    "llm_calls": 1,
-    "latency_s": 5.1
-   },
-   {
-    "id": "M1",
-    "category": "ambiguous",
-    "expected": "clarify",
-    "kind": "answer",
-    "label": "wrong_behavior",
-    "rationale": "The system provided a detailed answer listing multiple limits instead of asking the user to clarify which specific limit they were referring to.",
-    "llm_calls": 1,
-    "latency_s": 7.6
-   },
-   {
-    "id": "M2",
-    "category": "ambiguous",
-    "expected": "clarify",
-    "kind": "answer",
-    "label": "wrong_behavior",
-    "rationale": "The system answered the question by providing details on specific interpretations instead of asking the user to clarify which filing type they meant.",
-    "llm_calls": 1,
-    "latency_s": 7.2
-   }
-  ],
-  "metrics": {
-   "n": 15,
-   "hallucination_rate": 0.2,
-   "correct_behavior_rate": 0.667,
-   "incorrect_refusals": 0,
-   "avg_llm_calls": 1.0,
-   "avg_latency_s": 10.4
-  }
- },
  "corrected": {
   "rows": [
    {
@@ -169,9 +7,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response materially matches the gold answer by correctly stating that the meal allowance is $40 per day and receipts are required.",
+    "rationale": "The system response matches the gold answer by correctly stating that the meal allowance is $40 per day and receipts are required.",
     "llm_calls": 4,
-    "latency_s": 17.3
+    "latency_s": 83.6
    },
    {
     "id": "A2",
@@ -179,9 +17,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response matches the gold answer exactly, specifying the $75 monthly stipend and the qualification criteria for hybrid employees.",
+    "rationale": "The system response materially matches the gold answer by correctly stating the $75 per month stipend amount and that it applies to hybrid employees working from home at least three days per week.",
     "llm_calls": 4,
-    "latency_s": 15.8
+    "latency_s": 19.4
    },
    {
     "id": "A3",
@@ -189,9 +27,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response correctly identifies and lists the exact approved vendors specified in the gold answer.",
+    "rationale": "The system response correctly identifies the approved vendors matching the gold answer.",
     "llm_calls": 4,
-    "latency_s": 16.8
+    "latency_s": 20.2
    },
    {
     "id": "A4",
@@ -199,9 +37,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response accurately details the function's backoff behavior, delay limits, retry conditions, and specific HTTP codes, matching the gold answer perfectly.",
+    "rationale": "The system response accurately describes the function's behavior and lists the correct HTTP codes as specified in the gold answer.",
     "llm_calls": 4,
-    "latency_s": 36.6
+    "latency_s": 39.6
    },
    {
     "id": "A5",
@@ -209,9 +47,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response materially matches the gold answer by correctly stating that interns have an equipment reimbursement limit of $200 and full-time staff have a limit of $800 per fiscal year.",
+    "rationale": "The system response accurately provides the reimbursement limits for both interns and full-time staff as specified in the gold answer.",
     "llm_calls": 4,
-    "latency_s": 28.5
+    "latency_s": 19.3
    },
    {
     "id": "U1",
@@ -219,9 +57,9 @@
     "expected": "refuse",
     "kind": "refusal",
     "label": "correctly_refused",
-    "rationale": "The system correctly declined to answer the question because the information was not present in the ingested documents, matching the expected refuse behavior.",
+    "rationale": "The system correctly declined to answer since the information was not present in the provided corpus.",
     "llm_calls": 5,
-    "latency_s": 18.1
+    "latency_s": 32.5
    },
    {
     "id": "U2",
@@ -229,9 +67,9 @@
     "expected": "refuse",
     "kind": "refusal",
     "label": "correctly_refused",
-    "rationale": "The system correctly refused to answer as the information is not in the corpus, matching the expected refusal behavior.",
+    "rationale": "The system correctly refused to answer because the ingested documents do not contain information regarding cryptocurrency reimbursement.",
     "llm_calls": 5,
-    "latency_s": 17.3
+    "latency_s": 30.7
    },
    {
     "id": "U3",
@@ -239,9 +77,9 @@
     "expected": "refuse",
     "kind": "refusal",
     "label": "correctly_refused",
-    "rationale": "The system correctly refused to answer because the information was not available in the corpus, matching the expected refusal behavior.",
-    "llm_calls": 3,
-    "latency_s": 12.2
+    "rationale": "The system correctly refused to answer because the requested information is not available in the corpus, matching the expected refuse behavior.",
+    "llm_calls": 4,
+    "latency_s": 27.7
    },
    {
     "id": "C1",
@@ -249,9 +87,9 @@
     "expected": "dual_answer",
     "kind": "dual_answer",
     "label": "correct_dual_answer",
-    "rationale": "The system response correctly presents both conflicting travel reimbursement limits ($300 and $500) along with their respective sources without picking one over the other.",
+    "rationale": "The system response correctly presents both conflicting values ($300 and $500) with their corresponding sources without picking a single side.",
     "llm_calls": 3,
-    "latency_s": 27.9
+    "latency_s": 23.9
    },
    {
     "id": "C2",
@@ -259,9 +97,9 @@
     "expected": "dual_answer",
     "kind": "answer",
     "label": "wrong_behavior",
-    "rationale": "The response presents both conflicting values with their sources, but fails to remain neutral as it resolves the conflict by declaring that the 2024 policy supersedes the 2023 policy.",
+    "rationale": "The system response resolves the conflict by stating the 2024 policy supersedes the 2023 policy, instead of presenting both conflicting values without picking one.",
     "llm_calls": 4,
-    "latency_s": 22.5
+    "latency_s": 27.1
    },
    {
     "id": "C3",
@@ -269,9 +107,9 @@
     "expected": "dual_answer",
     "kind": "answer",
     "label": "correct_dual_answer",
-    "rationale": "The system response correctly presents both the $300 and $500 limits along with their respective sources from 2023 and 2024 without picking one as the single truth.",
-    "llm_calls": 4,
-    "latency_s": 32.8
+    "rationale": "The system response correctly presents both the $300 limit from the 2023 policy and the $500 limit from the 2024 policy and memo without selecting one as the absolute truth.",
+    "llm_calls": 6,
+    "latency_s": 58.3
    },
    {
     "id": "O1",
@@ -279,9 +117,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "hallucinated",
-    "rationale": "The system response incorrectly states the penalty is capped at 103 instead of 10%, which contradicts the gold answer.",
+    "rationale": "The system response asserts that the penalty is capped at 103 instead of 10%, contradicting the gold answer.",
     "llm_calls": 4,
-    "latency_s": 19.6
+    "latency_s": 22.9
    },
    {
     "id": "O2",
@@ -289,9 +127,9 @@
     "expected": "answer",
     "kind": "answer",
     "label": "correct",
-    "rationale": "The system response correctly identifies the signatory as R. Iyer, Finance Controller, which materially matches the gold answer.",
+    "rationale": "The system response correctly identifies R. Iyer, Finance Controller as the signer of the memo, which matches the gold answer.",
     "llm_calls": 4,
-    "latency_s": 16.8
+    "latency_s": 17.3
    },
    {
     "id": "M1",
@@ -299,9 +137,9 @@
     "expected": "clarify",
     "kind": "clarify->answer",
     "label": "correctly_clarified",
-    "rationale": "The system response matches the gold answer by correctly identifying the $500 per trip limit under the 2024 policy.",
+    "rationale": "The system response materially matches the gold answer by correctly stating the travel reimbursement limit is $500 per trip under the 2024 policy.",
     "llm_calls": 7,
-    "latency_s": 59.6
+    "latency_s": 72.3
    },
    {
     "id": "M2",
@@ -311,7 +149,7 @@
     "label": "correctly_clarified",
     "rationale": "The system response materially matches the gold answer by stating that claims must be filed within 45 days of travel completion.",
     "llm_calls": 7,
-    "latency_s": 29.9
+    "latency_s": 29.0
    }
   ],
   "metrics": {
@@ -319,8 +157,8 @@
    "hallucination_rate": 0.067,
    "correct_behavior_rate": 0.867,
    "incorrect_refusals": 0,
-   "avg_llm_calls": 4.4,
-   "avg_latency_s": 24.8
+   "avg_llm_calls": 4.6,
+   "avg_latency_s": 34.9
   }
  }
 }

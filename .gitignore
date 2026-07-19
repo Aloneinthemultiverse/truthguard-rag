@@ -5,3 +5,8 @@ storage/
 .claude/
 *.egg-info/
 context_graph_dg.html
+eval/data/
+eval/h2h_work/
+corpus/We__*
+corpus/vibe-thinker__*
+graph3d_data.json

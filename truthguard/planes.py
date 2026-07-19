@@ -85,6 +85,92 @@ def build_y_plus(cg: ContextGraph, client, embed_model) -> dict:
             "communities": added, "member_edges": m_edges}
 
 
+def wire_yplus_entities(cg: ContextGraph) -> dict:
+    """Load the saved y+ DG state (entities/relations/communities) into the
+    context graph so the 3D view and cross-plane recall see individual
+    entities, not just community summaries. Replaces prior entity nodes."""
+    from decisiongraph.graph import load_graph_state
+    G, communities, summaries = load_graph_state(
+        save_dir=os.path.join(config.STORAGE_DIR, "yplus"))
+    cg.g.remove_nodes_from([n for n, d in cg.g.nodes(data=True)
+                            if d.get("plane") in ("entity", "doc_community")])
+    for n, d in G.nodes(data=True):
+        cg.g.add_node(f"ent:{n}", plane="entity", label=str(n),
+                      source=d.get("source", ""))
+    rel_edges = 0
+    for u, v, e in G.edges(data=True):
+        cg.g.add_edge(f"ent:{u}", f"ent:{v}",
+                      relation=e.get("relation", "related"))
+        rel_edges += 1
+    m_edges = 0
+    for cid, info in summaries.items():
+        cnode = f"y+dcomm:{cid}"
+        cg.g.add_node(cnode, plane="doc_community",
+                      summary=info["summary"].strip(), label=info["summary"][:60])
+        for ent in info["nodes"]:
+            if cg.g.has_node(f"ent:{ent}"):
+                cg.g.add_edge(f"ent:{ent}", cnode, relation="member_of")
+                m_edges += 1
+    cg.save()
+    return {"entities": G.number_of_nodes(), "relations": rel_edges,
+            "communities": len(summaries), "member_edges": m_edges}
+
+
+def retro_link_spine(cg: ContextGraph, embed_model, min_sim: float = 0.45) -> dict:
+    """Wire every spine turn to the entity / doc chunk / code node it talks
+    about (grounds -> knowledge, references -> entity, references_symbol ->
+    code). Gives imported historical turns the same cross-plane reference
+    points that live `ask` turns get from the controller."""
+    import numpy as np
+    turns = [(n, d) for n, d in cg.g.nodes(data=True) if d.get("plane") == "spine"]
+    targets = {
+        "references": ("entity", [(n, d) for n, d in cg.g.nodes(data=True)
+                                  if d.get("plane") == "entity"]),
+        "references_symbol": ("code", [(n, d) for n, d in cg.g.nodes(data=True)
+                                       if d.get("plane") in ("code", "code_symbol")]),
+    }
+    if not turns:
+        return {"linked": 0}
+    qv = embed_model.encode([d["question"][:300] for _, d in turns],
+                            normalize_embeddings=True)
+    added = 0
+    # grounds: match turn text against the chunk store's REAL chunk vectors
+    try:
+        from .chunk_store import ChunkStore
+        store = ChunkStore()
+        if store._vectors is not None:
+            sims = np.asarray(qv) @ store._vectors.T
+            for i, (tn, _td) in enumerate(turns):
+                j = int(np.argmax(sims[i]))
+                knode = f"k:{store._ids[j]}"
+                if sims[i][j] >= min_sim:
+                    if not cg.g.has_node(knode):
+                        c = store.by_id[store._ids[j]]
+                        cg.g.add_node(knode, plane="knowledge",
+                                      source=f"{c['source_file']} p.{c.get('page','?')}")
+                    if not cg.g.has_edge(tn, knode):
+                        cg.g.add_edge(tn, knode, relation="grounds",
+                                      sim=round(float(sims[i][j]), 3))
+                        added += 1
+    except Exception:
+        pass
+    for rel, (plane, nodes) in targets.items():
+        if not nodes:
+            continue
+        texts = [(d.get("label") or d.get("summary") or d.get("source") or str(n))[:300]
+                 for n, d in nodes]
+        tv = embed_model.encode(texts, normalize_embeddings=True)
+        sims = np.asarray(qv) @ np.asarray(tv).T          # turns x targets
+        for i, (tn, _td) in enumerate(turns):
+            j = int(np.argmax(sims[i]))
+            if sims[i][j] >= min_sim and not cg.g.has_edge(tn, nodes[j][0]):
+                cg.g.add_edge(tn, nodes[j][0], relation=rel,
+                              sim=round(float(sims[i][j]), 3))
+                added += 1
+    cg.save()
+    return {"linked": added, "turns": len(turns)}
+
+
 def build_x(cg: ContextGraph, client, embed_model) -> dict:
     """DG's decision-community recipe on conversation turns."""
     turns = [(n, d) for n, d in cg.g.nodes(data=True) if d.get("plane") == "spine"]
@@ -129,6 +215,100 @@ def build_x(cg: ContextGraph, client, embed_model) -> dict:
         n_comm += 1
     cg.save()
     return {"communities": n_comm, "member_edges": m_edges}
+
+
+def run_supersede(cg: ContextGraph, embed_model, q_sim: float = 0.80,
+                  a_sim_max: float = 0.75) -> dict:
+    """DG lifecycle: when a NEWER turn answers the same question differently,
+    the older memory is superseded — demoted (confidence 0.3), tagged, and
+    wired old <-supersedes- new. Recall then ranks the current answer first
+    and marks the stale one instead of serving it as truth."""
+    import numpy as np
+    import re as _re
+
+    def _nums(text):
+        return {n.replace(",", "") for n in _re.findall(r"\d[\d,]*\.?\d*", text or "")}
+
+    turns = [(n, d) for n, d in cg.g.nodes(data=True)
+             if d.get("plane") == "spine" and d.get("is_active", True)
+             and d.get("status") != "superseded"
+             and len(d.get("question", "")) >= 25]      # skip trivial turns
+    if len(turns) < 2:
+        return {"superseded": 0}
+    turns.sort(key=lambda x: int(x[0][1:]))
+    qv = embed_model.encode([d["question"][:300] for _, d in turns],
+                            normalize_embeddings=True)
+    av = embed_model.encode([(d.get("text") or d["question"])[:300]
+                             for _, d in turns], normalize_embeddings=True)
+    qs = np.asarray(qv) @ np.asarray(qv).T
+    as_ = np.asarray(av) @ np.asarray(av).T
+    hit = 0
+    for i in range(len(turns)):            # older
+        for j in range(i + 1, len(turns)):  # newer
+            old_nums = _nums(turns[i][1].get("text"))
+            new_nums = _nums(turns[j][1].get("text"))
+            numeric_change = bool(old_nums and new_nums and old_nums != new_nums)
+            if qs[i][j] >= q_sim and (as_[i][j] < a_sim_max or numeric_change):
+                old_n, old_d = turns[i]
+                new_n, _ = turns[j]
+                if old_d.get("status") == "superseded":
+                    continue
+                old_d["status"] = "superseded"
+                old_d["superseded_by"] = new_n
+                old_d["confidence"] = min(old_d.get("confidence") or 1.0, 0.3)
+                cg.g.add_edge(new_n, old_n, relation="supersedes")
+                hit += 1
+    cg.save()
+    return {"superseded": hit, "turns_checked": len(turns)}
+
+
+def load_code_plane(cg: ContextGraph, clear: bool = False) -> dict:
+    """Pull the ENTIRE code graph of the linked repo from GitNexus into the
+    context graph: every Function/Class/Method/File node (involved in chat or
+    not) + calls/defines/imports edges. This is the full-codebase digest."""
+    from .code_link import _cypher
+
+    def rows(md, ncols):
+        out = []
+        for r in (md or "").splitlines():
+            cells = [c.strip() for c in r.split("|") if c.strip()]
+            if len(cells) == ncols and not set(cells[0]) <= set("-") \
+               and not cells[0].endswith(".name"):
+                out.append(cells)
+        return out
+
+    if clear:
+        cg.g.remove_nodes_from([n for n, d in cg.g.nodes(data=True)
+                                if d.get("plane") in ("code", "code_file")])
+    n_nodes = 0
+    ids = {}
+    for kind in ("Function", "Class", "Method"):
+        md = _cypher(f"MATCH (f:{kind}) RETURN f.name, f.filePath")
+        for name, fp in rows(md, 2):
+            nid = f"code:{name}:{os.path.basename(fp)}"
+            ids[name] = nid
+            if not cg.g.has_node(nid):
+                from .code_link import CODE_REPO
+                cg.g.add_node(nid, plane="code", label=f"{name}",
+                              source=fp, kind=kind.lower(), repo=CODE_REPO)
+                n_nodes += 1
+    md = _cypher("MATCH (f:File) RETURN f.name, f.filePath")
+    for name, fp in rows(md, 2):
+        nid = f"codefile:{fp}"
+        ids[name] = nid
+        if not cg.g.has_node(nid):
+            cg.g.add_node(nid, plane="code_file", label=name, source=fp)
+            n_nodes += 1
+    n_edges = 0
+    md = _cypher("MATCH (a)-[r:CodeRelation]->(b) RETURN a.name, r.type, b.name")
+    for a, rel, b in rows(md, 3):
+        if a in ids and b in ids and rel in ("CALLS", "DEFINES", "IMPORTS",
+                                             "HAS_METHOD"):
+            if not cg.g.has_edge(ids[a], ids[b]):
+                cg.g.add_edge(ids[a], ids[b], relation=rel.lower())
+                n_edges += 1
+    cg.save()
+    return {"code_nodes": n_nodes, "code_edges": n_edges}
 
 
 def build_y_minus(cg: ContextGraph) -> dict:

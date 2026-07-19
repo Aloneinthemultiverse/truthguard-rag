@@ -7,6 +7,7 @@ load_dotenv()
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.anthropic.com")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")   # "anthropic" | "openai" (NVIDIA NIM)
 MAX_LLM_CALLS_PER_QUERY = 6
 
 # Embeddings (local)

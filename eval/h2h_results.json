@@ -1,0 +1,10 @@
+{
+ "truthguard": {
+  "evidence": 0.6,
+  "qa": null
+ },
+ "graphify": {
+  "evidence": 0.0,
+  "qa": null
+ }
+}

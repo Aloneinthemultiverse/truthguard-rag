@@ -29,11 +29,13 @@ class ContextGraph:
         self.load()
 
     # ── record one turn (called by the controller after every response) ─────
-    def record_turn(self, question: str, response: dict, chunks_used: list) -> str:
+    def record_turn(self, question: str, response: dict, chunks_used: list,
+                    session: str = "live") -> str:
         nid = f"t{self.g.graph.get('n_turns', 0) + 1}"
         self.g.graph["n_turns"] = self.g.graph.get("n_turns", 0) + 1
         self.g.add_node(nid, plane="spine", question=question[:200],
                         kind=response["kind"],
+                        session=session,
                         text=(response.get("text") or "")[:300],
                         confidence=response.get("confidence"),
                         band=response.get("band"))
@@ -81,15 +83,23 @@ class ContextGraph:
                 break
             cur = prevs[0]
             spine.append(cur)
-        knowledge, code = set(), set()
+        knowledge, code, entities = set(), set(), set()
         for s in spine:
             for _, v, d in self.g.out_edges(s, data=True):
-                if d.get("relation") == "grounds":
-                    knowledge.add(self.g.nodes[v]["source"])
-                elif d.get("relation") in ("references", "references_symbol"):
-                    code.add(self.g.nodes[v]["source"])
+                rel = d.get("relation")
+                nd = self.g.nodes[v]
+                name = nd.get("source") or nd.get("label") or str(v)
+                plane = nd.get("plane", "")
+                if rel == "grounds" or plane == "knowledge":
+                    knowledge.add(name)
+                elif plane == "entity":
+                    entities.add(name)
+                elif rel in ("references", "references_symbol", "edited") \
+                        or plane in ("code", "code_symbol", "code_file"):
+                    code.add(name)
         return {"spine": [dict(self.g.nodes[s], id=s) for s in spine],
-                "knowledge": sorted(knowledge), "code": sorted(code)}
+                "knowledge": sorted(knowledge), "code": sorted(code),
+                "entities": sorted(entities)}
 
     def save(self):
         os.makedirs(self.storage_dir, exist_ok=True)
