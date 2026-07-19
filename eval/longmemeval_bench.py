@@ -51,7 +51,7 @@ def main():
                                    it["haystack_dates"], it["haystack_sessions"]):
             for t in sess:
                 if t.get("content"):
-                    texts.append(f"[{date}] {t['role']}: {t['content'][:400]}")
+                    texts.append(f"[{date}] {t['role']}: {t['content'][:1500]}")
                     sess_of.append(sid)
         vecs = em.encode(texts, normalize_embeddings=True, batch_size=128,
                          show_progress_bar=False)
@@ -65,14 +65,29 @@ def main():
             n_rec += 1
 
         if use_llm and id(it) in qa_items:
-            ctx = "\n".join(texts[i] for i in top)
+            # SYNTHESIS UPGRADE: neighborhood expansion (hit turn +-2 dialogue
+            # neighbors), full text, chronological order with visible dates,
+            # question-type-aware instructions.
+            keep = set()
+            for i in top:
+                keep.update(range(max(0, i - 2), min(len(texts), i + 3)))
+            ctx = "\n".join(texts[i] for i in sorted(keep))
+            qt = it["question_type"]
+            hint = ""
+            if "temporal" in qt:
+                hint = " Compute dates/durations from the [date] tags."
+            elif "update" in qt or "knowledge" in qt:
+                hint = " If information changed over time, answer with the LATEST state."
+            elif "multi-session" in qt:
+                hint = " Combine facts across the different dated sessions."
             try:
                 llm.reset_budget()
                 ans = llm.complete(
-                    f"Memories:\n{ctx}\n\nQuestion ({it['question_date']}): "
-                    f"{it['question']}\nAnswer concisely from the memories only; "
-                    f"if they don't contain the answer, say 'I don't know'.",
-                    max_tokens=100)
+                    f"Memories (chronological):\n{ctx}\n\n"
+                    f"Question (asked {it['question_date']}): {it['question']}\n"
+                    f"Answer concisely from the memories only.{hint} "
+                    f"If they don't contain the answer, say 'I don't know'.",
+                    max_tokens=150)
                 if is_abs:
                     qa_scores.append(1.0 if any(k in ans.lower() for k in
                                      ("don't know", "not know", "no information",

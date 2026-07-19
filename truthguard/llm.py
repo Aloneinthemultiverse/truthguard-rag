@@ -40,9 +40,12 @@ class LLM:
                     if backoff:
                         time.sleep(backoff)
                     try:
+                        kw = {}
+                        if "deepseek" in config.LLM_MODEL:
+                            kw["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
                         resp = self.client.chat.completions.create(
                             model=config.LLM_MODEL, max_tokens=max_tokens, temperature=temperature,
-                            messages=[{"role": "user", "content": prompt}])
+                            messages=[{"role": "user", "content": prompt}], **kw)
                         break
                     except Exception as e:
                         if "429" not in str(e) or backoff == 90:
