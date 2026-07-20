@@ -209,3 +209,13 @@ TruthGuard's memory layer adopts published, verified techniques from the 2026 me
 | **Abstention + contradiction as first-class** | BEAM 2026 (ICLR) | already implemented | `_abs` questions → refusal path; conflicting facts → dual-answer path — the two BEAM categories that map directly onto our gate. |
 
 **Differentiator:** competing systems (Mem0, Zep, MemPalace) are *memory stores* — they retrieve and hand context to a generator that answers unconditionally. TruthGuard puts an **assessment gate** between retrieval and generation, so these techniques raise recall *and* feed a system that refuses, clarifies, or dual-answers rather than fabricating.
+
+## 8. Interface (Studio)
+
+A FastAPI backend (`truthguard/api.py`, port 7788) wraps the same functions the MCP tools call — the UI and MCP cannot drift apart. Endpoints: `/ask`, `/ingest/{document,project,chat}`, `/graph_query`, `/graph3d`, `/stats`, `/benchmarks`.
+
+Two served pages:
+- **Studio** (`studio.html`) — glass-box chat: every answer renders its reasoning trace (`retrieve → assess → verdict`), a confidence ring + band, chunk-level citations, and dual-answer split cards; a drop-zone ingests PDF/DOCX/MD live; a persistent 3-plane 3D graph panel grows with every turn.
+- **How it works** (`architecture.html`) — visual explainer: the 4-stage pipeline, the inside-the-gate checks, the 3-plane memory, and verified results.
+
+Run: `uvicorn truthguard.api:app --port 7788` (+ the graph server on 7787).

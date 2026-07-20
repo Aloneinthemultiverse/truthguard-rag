@@ -190,3 +190,8 @@ def benchmarks():
 @app.get("/")
 def studio():
     return FileResponse(os.path.join(ROOT, "studio.html"))
+
+
+@app.get("/architecture.html")
+def architecture():
+    return FileResponse(os.path.join(ROOT, "architecture.html"))

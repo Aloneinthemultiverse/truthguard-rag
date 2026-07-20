@@ -1,0 +1,128 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TruthGuard — How it works</title>
+<style>
+:root{--bg:#070b16;--panel:#0e1626;--line:#1c2841;--line2:#28395c;--txt:#e6edf7;
+ --mut:#8697b8;--dim:#5b6b8c;--teal:#39d2c0;--purple:#bc8cff;--coral:#ff8c66;--amber:#e3b341;--green:#41d18a;--red:#ff6b6b;--blue:#5ea1ff;--radius:14px}
+*{box-sizing:border-box;margin:0}
+body{background:radial-gradient(1200px 700px at 50% -12%,#12203a,var(--bg) 60%);color:var(--txt);
+ font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+ line-height:1.6;padding:0 0 80px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 26px}
+header{padding:26px 0 10px;display:flex;align-items:center;gap:14px}
+.logo{width:32px;height:32px;border-radius:9px;position:relative;
+ background:conic-gradient(from 210deg,var(--teal),var(--purple),var(--coral),var(--teal));box-shadow:0 0 22px #39d2c055}
+.logo::after{content:"";position:absolute;inset:6px;border-radius:5px;background:var(--bg)}
+h1{font-size:26px;font-weight:700;letter-spacing:-.3px}
+h1 small{display:block;font-size:13px;font-weight:400;color:var(--mut);margin-top:2px}
+.back{margin-left:auto;font-size:13px;color:var(--teal);text-decoration:none;border:1px solid #1c4a45;
+ background:#0f2b2a;padding:8px 15px;border-radius:10px}
+h2{font-size:15px;font-weight:600;color:var(--mut);text-transform:uppercase;letter-spacing:1.5px;
+ margin:44px 0 18px;display:flex;align-items:center;gap:10px}
+h2::after{content:"";flex:1;height:1px;background:var(--line)}
+.lead{font-size:17px;color:var(--txt);margin:16px 0 8px;max-width:760px}
+.lead b{color:var(--teal);font-weight:600}
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:8px 0}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;position:relative}
+.stage::after{content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:18px;z-index:2}
+.stage:last-child::after{display:none}
+.stage .n{font-size:11px;color:var(--dim);font-weight:600}
+.stage .t{font-size:15px;font-weight:600;margin:5px 0 8px}
+.stage .d{font-size:12.5px;color:var(--mut);line-height:1.5}
+.stage.gate{border-color:#4a3a12;background:#16130a}
+.stage.gate .t{color:var(--amber)}
+.tag{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:7px;margin:8px 6px 0 0;
+ background:#0f2b2a;color:var(--teal);border:1px solid #1c4a45}
+.tag.a{background:#2e2410;color:var(--amber);border-color:#4a3a12}
+/* gate detail */
+.gatebox{background:#16130a;border:1px solid #4a3a12;border-radius:var(--radius);padding:20px;margin-top:8px}
+.gaterow{display:flex;gap:12px;flex-wrap:wrap}
+.gstep{flex:1;min-width:150px;background:#0e1626;border:1px solid var(--line);border-radius:11px;padding:13px}
+.gstep .t{font-size:13.5px;font-weight:600;color:var(--amber)}
+.gstep .d{font-size:12px;color:var(--mut);margin-top:5px}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-top:16px}
+.vd{border-radius:11px;padding:12px 14px;border:1px solid}
+.vd .t{font-size:13.5px;font-weight:600}.vd .d{font-size:12px;color:var(--mut);margin-top:4px}
+.vd.g1{background:#0d211f;border-color:#1c4a45}.vd.g1 .t{color:var(--teal)}
+.vd.g2{background:#221a3d;border-color:#3a2d5c}.vd.g2 .t{color:var(--purple)}
+.vd.g3{background:#2e2410;border-color:#4a3a12}.vd.g3 .t{color:var(--amber)}
+.vd.g4{background:#2e1414;border-color:#4a1c1c}.vd.g4 .t{color:var(--red)}
+/* planes */
+.planes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.plane{border-radius:var(--radius);padding:18px;border:1px solid}
+.plane .lbl{font-size:12px;font-weight:600;letter-spacing:.5px}
+.plane .name{font-size:16px;font-weight:600;margin:6px 0 10px}
+.plane .d{font-size:12.5px;color:var(--mut);line-height:1.55}
+.plane.yp{background:#0d211f;border-color:#1c4a45}.plane.yp .lbl,.plane.yp .name{color:var(--teal)}
+.plane.x{background:#1a1530;border-color:#3a2d5c}.plane.x .lbl,.plane.x .name{color:var(--purple)}
+.plane.ym{background:#2a1a12;border-color:#5c3a28}.plane.ym .lbl,.plane.ym .name{color:var(--coral)}
+.xlinks{text-align:center;color:var(--dim);font-size:12.5px;margin-top:14px}
+.xlinks code{color:var(--mut);background:#0e1626;padding:2px 7px;border-radius:6px;border:1px solid var(--line);margin:0 3px}
+/* stats row */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:8px}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.metric .v{font-size:24px;font-weight:700;color:var(--teal)}
+.metric .l{font-size:12px;color:var(--mut);margin-top:3px}
+.metric .b{font-size:11px;color:var(--dim);margin-top:6px}
+.foot{text-align:center;color:var(--dim);font-size:12px;margin-top:50px}
+</style></head><body>
+<div class="wrap">
+<header>
+ <div class="logo"></div>
+ <h1>How TruthGuard works<small>self-correcting RAG over messy documents · 3-plane context memory</small></h1>
+ <a class="back" href="/">← Studio</a>
+</header>
+
+<p class="lead"><b>The core idea:</b> the generator LLM is <b>never called until the retrieved context passes an assessment gate</b>. A model that isn't invoked on bad context cannot fabricate from it. Everything else serves that gate.</p>
+
+<h2>The pipeline</h2>
+<div class="pipe">
+ <div class="stage"><div class="n">01</div><div class="t">Ingest</div><div class="d">Mixed PDFs, scans, code-in-PDF → Markdown. No text layer → OCR ladder.</div>
+  <span class="tag">Tesseract</span><span class="tag">Mistral OCR</span><span class="tag">chunk + provenance</span></div>
+ <div class="stage"><div class="n">02</div><div class="t">Retrieve</div><div class="d">Multi-signal fusion over the corpus — three rankings scored in parallel.</div>
+  <span class="tag">turbovec</span><span class="tag">BM25</span><span class="tag">entity match</span><span class="tag">RRF + rerank</span></div>
+ <div class="stage gate"><div class="n">03</div><div class="t">Assess gate</div><div class="d">Before any answer: is the context sufficient? contradictory? ambiguous?</div>
+  <span class="tag a">sufficiency</span><span class="tag a">triple-clash</span><span class="tag a">answerability</span></div>
+ <div class="stage"><div class="n">04</div><div class="t">Respond</div><div class="d">Only now the generator fires — or refuses, clarifies, or dual-answers.</div>
+  <span class="tag">confidence bands</span><span class="tag">citations</span></div>
+</div>
+
+<h2>Inside the gate</h2>
+<p class="lead">This is the self-correction. Four checks run cheapest-first; the generator only fires on a clean pass.</p>
+<div class="gatebox">
+ <div class="gaterow">
+  <div class="gstep"><div class="t">1 · Sufficiency</div><div class="d">Max retrieval similarity vs threshold. Too low → INSUFFICIENT before any LLM call. (0 tokens)</div></div>
+  <div class="gstep"><div class="t">2 · Triple extraction</div><div class="d">Facts as (subject, relation, object) with qualifiers + bi-temporal validity windows.</div></div>
+  <div class="gstep"><div class="t">3 · Clash detection</div><div class="d">Same subject+relation, overlapping validity, different value → contradiction. Evidence-voted, OCR-aware.</div></div>
+  <div class="gstep"><div class="t">4 · Answerability</div><div class="d">SUFFICIENT / PARTIAL / INSUFFICIENT / AMBIGUOUS — and proposes clarify options.</div></div>
+ </div>
+ <div class="verdicts">
+  <div class="vd g1"><div class="t">✓ Answer</div><div class="d">Context clean → generate with a confidence band and chunk-level citations.</div></div>
+  <div class="vd g2"><div class="t">⇄ Dual-answer</div><div class="d">Conflicting facts → present both with sources. Never silently picks one.</div></div>
+  <div class="vd g3"><div class="t">? Clarify</div><div class="d">Ambiguous question → multiple-choice, then re-run with the answer.</div></div>
+  <div class="vd g4"><div class="t">⊘ Refuse</div><div class="d">Not in corpus → decline with gap analysis. No fabrication.</div></div>
+ </div>
+</div>
+
+<h2>3-plane context memory</h2>
+<p class="lead">Every conversation, document, and codebase becomes one global graph. Recall is <b>O(neighborhood)</b>, not O(history) — and it persists across chats and models via MCP.</p>
+<div class="planes">
+ <div class="plane yp"><div class="lbl">y+ · KNOWLEDGE</div><div class="name">Documents</div>
+  <div class="d">Provenance chunks + entities + communities (DecisionGraph recipe: Louvain → LLM summaries → compiled truth).</div></div>
+ <div class="plane x"><div class="lbl">x · SPINE</div><div class="name">Conversation</div>
+  <div class="d">Turns as decision memory with confidence, decay, supersede, and topic communities. Per-session chains.</div></div>
+ <div class="plane ym"><div class="lbl">y− · CODE</div><div class="name">Codebase</div>
+  <div class="d">GitNexus structure (calls/imports/defines) + AST function bodies across 22+ languages.</div></div>
+</div>
+<div class="xlinks">cross-wired: <code>grounds</code><code>references</code><code>member_of</code><code>supersedes</code> — a chat turn traces to the doc passage <em>and</em> the code that back it</div>
+
+<h2>Verified results</h2>
+<div class="metrics">
+ <div class="metric"><div class="v">20% → 7%</div><div class="l">hallucination rate</div><div class="b">baseline vs corrected, 15 gold Q</div></div>
+ <div class="metric"><div class="v">67% → 87%</div><div class="l">correct behavior</div><div class="b">answer / refuse / clarify / dual</div></div>
+ <div class="metric"><div class="v">0.657</div><div class="l">LOCOMO recall@10</div><div class="b">best in field (n=300)</div></div>
+ <div class="metric"><div class="v">$9,999</div><div class="l">injection never leaked</div><div class="b">adversarial battery</div></div>
+</div>
+
+<div class="foot">TruthGuard · self-correcting RAG + 3-plane context OS · built on DecisionGraph, turbovec, GitNexus</div>
+</div></body></html>

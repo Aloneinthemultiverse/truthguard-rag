@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root{color-scheme:dark}
+html,body,#root{height:100%;margin:0}
+body{background:radial-gradient(1200px 600px at 72% -10%,#12203a 0%,#070b16 55%);
+ color:#e6edf7;font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+*::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-thumb{background:#28395c;border-radius:4px}
