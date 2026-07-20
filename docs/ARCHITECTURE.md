@@ -194,3 +194,18 @@ Judgment    {label: correct|hallucinated|correctly_refused|
 ## 6. Relation to the 3-plane vision (post-competition)
 
 This build constructs the **knowledge plane (y+)**: provenance chunks + turbovec + decision memory. Adding a conversation spine (x) and a GitNexus-style code plane (y−), cross-linked `grounds`/`references`, exposed over MCP so any model shares one memory → the context OS where the window holds O(neighborhood) instead of O(history). Captured separately; zero competition scope.
+
+## 7. Memory-layer techniques (verified from 2026 benchmark literature)
+
+TruthGuard's memory layer adopts published, verified techniques from the 2026 memory-benchmark literature. Each serves the self-correction gate — the generator never fires until context passes sufficiency, contradiction, and answerability checks.
+
+| Technique | Source | Status | What it does here |
+|---|---|---|---|
+| **Multi-signal retrieval** (semantic + BM25 + **entity match**) | Mem0 2026 algorithm (LongMemEval 94.4%) | **implemented** — `retrieve.py:_entity_ranking` | Question entities (quoted phrases, proper nouns, dates/numbers) form a third ranking fused into RRF alongside vector + BM25. Deterministic, zero-LLM. |
+| **Bi-temporal fact scoping** (`valid_from` / `valid_until`) | Zep / Graphiti | planned | Triples carry two timelines (event time + ingestion time). Contradiction = same subject+relation, overlapping validity, different object — time-aware supersede. |
+| **Explicit hierarchy** (episode → entity → community) | Zep three-tier subgraph | partial (planes already layer turn → triple → community) | Make parent/child edges explicit: raw turn (immutable) → derived triple → community summary. |
+| **Non-lossy episodic storage** (raw kept forever, derived views on top) | Zep / MemPalace | already true — chunk store is immutable; triples are derived | Every answer traces to a verbatim source chunk (`file · page · native/ocr%`). |
+| **Episode–entity bidirectional index** | Zep | planned | `episode_id ↔ entity_id` map for O(1) citation traceability. |
+| **Abstention + contradiction as first-class** | BEAM 2026 (ICLR) | already implemented | `_abs` questions → refusal path; conflicting facts → dual-answer path — the two BEAM categories that map directly onto our gate. |
+
+**Differentiator:** competing systems (Mem0, Zep, MemPalace) are *memory stores* — they retrieve and hand context to a generator that answers unconditionally. TruthGuard puts an **assessment gate** between retrieval and generation, so these techniques raise recall *and* feed a system that refuses, clarifies, or dual-answers rather than fabricating.

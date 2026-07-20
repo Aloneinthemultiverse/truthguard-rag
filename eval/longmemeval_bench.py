@@ -40,8 +40,18 @@ def main():
         llm, judge = LLM(), LLM()
 
     data = json.load(open(DATA, encoding="utf-8"))
-    rng = random.Random(42)
-    items = rng.sample(data, min(max(qa_n, rec_n), len(data)))
+    # --start N: SLICE MODE — deterministic contiguous slice data[N:N+n], own
+    # results file (longmemeval_slice_N.json). Slices partition the full set;
+    # averaging slice results reproduces the full-set score, and an outage can
+    # only ever lose one slice.
+    slice_start = None
+    if "--start" in sys.argv:
+        slice_start = int(sys.argv[sys.argv.index("--start") + 1])
+        items = data[slice_start:slice_start + qa_n]
+        rec_n = len(items)
+    else:
+        rng = random.Random(42)
+        items = rng.sample(data, min(max(qa_n, rec_n), len(data)))
     qa_items = set(id(x) for x in items[:qa_n])
 
     hits, n_rec, qa_scores = 0, 0, []
@@ -116,10 +126,13 @@ def main():
     if qa_scores:
         print(f"QA accuracy (n={len(qa_scores)}): {sum(qa_scores)/len(qa_scores):.3f}   "
               f"(graphify 0.76, dense 0.76, mem0 0.70)")
-    json.dump({"recall_n": n_rec, "recall@10": hits / max(n_rec, 1),
-               "qa_n": len(qa_scores),
+    out_name = ("longmemeval_results.json" if slice_start is None
+                else f"longmemeval_slice_{slice_start}.json")
+    json.dump({"slice_start": slice_start, "recall_n": n_rec,
+               "recall@10": hits / max(n_rec, 1),
+               "qa_n": len(qa_scores), "qa_sum": sum(qa_scores),
                "qa": (sum(qa_scores) / len(qa_scores)) if qa_scores else None},
-              open(os.path.join(HERE, "longmemeval_results.json"), "w"), indent=1)
+              open(os.path.join(HERE, out_name), "w"), indent=1)
 
 
 if __name__ == "__main__":

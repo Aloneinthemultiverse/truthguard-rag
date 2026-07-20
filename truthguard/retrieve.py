@@ -24,6 +24,38 @@ def rrf_fuse(rankings: list, k: int = None, limit: int = 60) -> list:
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
 
 
+_ENTITY_RE = re.compile(r'"([^"]+)"|\b([A-Z][a-zA-Z]{2,}(?:\s+[A-Z][a-zA-Z]+)*)\b|\b(\d[\d,.$%/-]*\d|\d)\b')
+_STOP = {"The", "What", "When", "Where", "Which", "Who", "How", "Why", "Did",
+         "Does", "Is", "Are", "Was", "Were", "I", "My", "You", "A", "An"}
+
+
+def _question_entities(question: str) -> list:
+    """Entities from the question: quoted phrases, proper nouns, numbers/dates.
+    Mem0-2026 style entity signal — matched exactly against chunk text."""
+    ents = set()
+    for m in _ENTITY_RE.finditer(question):
+        val = next((g for g in m.groups() if g), None)
+        if val and val not in _STOP and len(val) > 1:
+            ents.add(val.strip())
+    return list(ents)
+
+
+def _entity_ranking(question: str, store) -> list:
+    """Third retrieval signal: rank chunks by count of exact question-entity
+    matches in their text. Zero-LLM, fuses into RRF alongside vector + BM25."""
+    ents = _question_entities(question)
+    if not ents:
+        return []
+    scored = []
+    for cid in store._ids:
+        text = store.by_id[cid]["text"]
+        hits = sum(1 for e in ents if e in text)
+        if hits:
+            scored.append((cid, float(hits)))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored[:25]
+
+
 def _interpretations(question: str, llm) -> list:
     """Superposed multi-query: up to N_INTERPRETATIONS readings of the question."""
     if llm is None:
@@ -88,6 +120,9 @@ def retrieve(store, question: str, llm=None) -> list:
             rankings.append(v)
         if b:
             rankings.append(b)
+    e = _entity_ranking(question, store)     # 3rd signal (Mem0-2026 entity match)
+    if e:
+        rankings.append(e)
     fused = rrf_fuse(rankings, limit=config.TOP_K_FUSED)
     fused = _doc_scope_filter(question, fused, store)
     reranked = _rerank(question, fused, store)
