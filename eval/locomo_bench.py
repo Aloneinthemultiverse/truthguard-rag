@@ -124,15 +124,28 @@ def main():
                 for i in top:
                     keep.update(range(max(0, i - 1), min(len(texts), i + 2)))
                 ctx = "\n".join(texts[i] for i in sorted(keep))
+                # category-aware CoT (LOCOMO cats: 1 multi-hop, 2 temporal,
+                # 3 open-domain, 4 single-hop, 5 adversarial/abstain)
+                cat = str(q.get("category", ""))
+                hint = {
+                    "1": "This needs MULTI-HOP reasoning: chain facts across turns.",
+                    "2": "This is a TEMPORAL question: build a dated timeline of the "
+                         "relevant events from the [dates], then reason about order/"
+                         "duration before answering.",
+                    "3": "Combine the memories with general world knowledge.",
+                    "5": "This may be UNANSWERABLE: if the memories don't clearly "
+                         "support an answer, say 'I don't know'.",
+                }.get(cat, "Find the specific fact asked for.")
                 try:
                     llm.reset_budget()
-                    ans = llm.complete(
-                        f"Conversation memories (chronological):\n{ctx}\n\n"
-                        f"Question: {q['question']}\n"
-                        f"Answer with ONLY the specific fact asked for, drawn from the "
-                        f"memories. Be precise with names, dates, and numbers. If the "
-                        f"memories don't contain it, say 'I don't know'.",
-                        max_tokens=120)
+                    raw = llm.complete(
+                        f"Conversation memories (chronological, dated):\n{ctx}\n\n"
+                        f"Question: {q['question']}\n{hint}\n"
+                        f"Think step by step in 1-3 short lines, then output the final "
+                        f"answer on a last line prefixed 'ANSWER:'. Be precise with "
+                        f"names, dates, and numbers.",
+                        max_tokens=400)
+                    ans = raw.split("ANSWER:")[-1].strip() if "ANSWER:" in raw else raw.strip()
                     judge.reset_budget()
                     verdict = judge.complete(
                         f"Question: {q['question']}\nGold answer: {q['answer']}\n"
