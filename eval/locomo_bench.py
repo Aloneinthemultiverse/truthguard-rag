@@ -57,8 +57,13 @@ def main():
     llm = judge = None
     if use_llm:
         sys.path.insert(0, os.path.dirname(HERE))
+        from truthguard import config as _cfg
+        rm = os.getenv("READER_MODEL")           # #1 strong reader (never weak flash)
+        if rm:
+            _cfg.LLM_MODEL = rm
         from truthguard.llm import LLM
         llm, judge = LLM(), LLM()
+        print(f"reader/judge model: {_cfg.LLM_MODEL}", flush=True)
 
     convs = load_convs()
     rng = random.Random(42)
@@ -67,18 +72,41 @@ def main():
     hits10 = 0
     qa_scores = []
     n_ret = 0
+    import re as _re
+    from rank_bm25 import BM25Okapi
+    from truthguard.retrieve import _question_entities
+
+    def _tok(t):
+        return _re.findall(r"[a-z0-9]+", t.lower())
+
+    def _rrf(rankings, k=60, limit=10):
+        sc = {}
+        for r in rankings:
+            for rank, i in enumerate(r):
+                sc[i] = sc.get(i, 0.0) + 1.0 / (k + rank + 1)
+        return [i for i, _ in sorted(sc.items(), key=lambda x: -x[1])[:limit]]
+
     for ci, conv in enumerate(convs):
         turns = turns_of(conv)
         texts = [f"{t['speaker']} ({t['date']}): {t['text']}" for t in turns]
         vecs = em.encode(texts, normalize_embeddings=True, batch_size=64,
                          show_progress_bar=False)
         ids = [t["dia_id"] for t in turns]
+        bm25 = BM25Okapi([_tok(t) for t in texts])           # #3 BM25 signal
         qa = [q for q in conv["qa"] if q.get("evidence") and q.get("answer")]
         sample = rng.sample(qa, min(per_conv, len(qa)))
         for q in sample:
             qv = em.encode([q["question"]], normalize_embeddings=True)[0]
             sims = np.asarray(vecs) @ qv
-            top = np.argsort(sims)[::-1][:10]
+            vec_rank = list(np.argsort(sims)[::-1][:25])
+            bm_scores = bm25.get_scores(_tok(q["question"]))     # #3 keyword
+            bm_rank = list(np.argsort(bm_scores)[::-1][:25])
+            ents = _question_entities(q["question"])             # #3 entity match
+            ent_scores = [sum(1 for e in ents if e in texts[i]) for i in range(len(texts))]
+            ent_rank = [i for i in np.argsort(ent_scores)[::-1][:25] if ent_scores[i] > 0]
+            fused = _rrf([vec_rank, bm_rank, ent_rank] if ent_rank else [vec_rank, bm_rank],
+                         limit=10)
+            top = fused
             top_ids = {ids[i] for i in top}
             ev = q["evidence"]
             if isinstance(ev, str):
@@ -91,17 +119,26 @@ def main():
             n_ret += 1
 
             if use_llm:
-                ctx = "\n".join(texts[i] for i in top)
+                # #4 fuller synthesis context: hit turns + ±1 neighbors, no truncation
+                keep = set()
+                for i in top:
+                    keep.update(range(max(0, i - 1), min(len(texts), i + 2)))
+                ctx = "\n".join(texts[i] for i in sorted(keep))
                 try:
                     llm.reset_budget()
                     ans = llm.complete(
-                        f"Memories:\n{ctx}\n\nQuestion: {q['question']}\n"
-                        f"Answer concisely from the memories only.", max_tokens=100)
+                        f"Conversation memories (chronological):\n{ctx}\n\n"
+                        f"Question: {q['question']}\n"
+                        f"Answer with ONLY the specific fact asked for, drawn from the "
+                        f"memories. Be precise with names, dates, and numbers. If the "
+                        f"memories don't contain it, say 'I don't know'.",
+                        max_tokens=120)
                     judge.reset_budget()
                     verdict = judge.complete(
                         f"Question: {q['question']}\nGold answer: {q['answer']}\n"
                         f"Model answer: {ans}\n"
-                        "Grade: reply exactly CORRECT, PARTIAL, or WRONG.",
+                        "Does the model answer contain the gold fact (allow paraphrase, "
+                        "extra detail)? Reply exactly CORRECT, PARTIAL, or WRONG.",
                         max_tokens=10).strip().upper()
                     qa_scores.append(1.0 if "CORRECT" in verdict
                                      else (0.5 if "PARTIAL" in verdict else 0.0))
