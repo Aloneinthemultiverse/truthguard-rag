@@ -101,6 +101,37 @@ class ContextGraph:
                 "knowledge": sorted(knowledge), "code": sorted(code),
                 "entities": sorted(entities)}
 
+    def episode_entity_index(self) -> dict:
+        """Bidirectional episode<->entity index (Zep): {episode->[entities],
+        entity->[episodes]} built from grounds/references edges. O(1) citation
+        traceability — any fact traces back to the source turn/chunk it came from,
+        and any turn lists what it grounded on."""
+        ep2ent, ent2ep = {}, {}
+        for u, v, e in self.g.edges(data=True):
+            if e.get("relation") in ("grounds", "references", "references_symbol"):
+                pu = self.g.nodes[u].get("plane")
+                if pu in ("spine", "chat"):
+                    ep2ent.setdefault(u, []).append(v)
+                    ent2ep.setdefault(v, []).append(u)
+        return {"episode_to_entity": ep2ent, "entity_to_episode": ent2ep}
+
+    def hierarchy(self, node: str) -> dict:
+        """Explicit three-tier lineage (Zep): episode (raw turn/chunk, immutable)
+        -> entity (derived triple/symbol) -> community (clustered summary)."""
+        tier = {"code": "entity", "code_symbol": "entity", "entity": "entity",
+                "knowledge": "episode", "spine": "episode", "chat": "episode",
+                "x_community": "community", "y_community": "community",
+                "doc_community": "community", "code_community": "community"}
+        out = {"node": node, "tier": tier.get(self.g.nodes[node].get("plane"), "?"),
+               "parents": [], "children": []}
+        for _, v, e in self.g.out_edges(node, data=True):
+            if e.get("relation") == "member_of":
+                out["parents"].append(v)
+        for u, _, e in self.g.in_edges(node, data=True):
+            if e.get("relation") == "member_of":
+                out["children"].append(u)
+        return out
+
     def save(self):
         os.makedirs(self.storage_dir, exist_ok=True)
         with open(_PATH(self.storage_dir), "wb") as f:

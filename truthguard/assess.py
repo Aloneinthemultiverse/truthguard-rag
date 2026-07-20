@@ -69,12 +69,30 @@ RULES:
 - if a chunk QUOTES or refers to an old/superseded value while asserting a newer
   one ("the 2023 policy said $300; this is now $500"), tag the old value's
   qualifiers with "status":"superseded" and the new one with "status":"current"
+- BI-TEMPORAL (Zep/Graphiti): add "valid_from" and "valid_until" (YYYY or
+  YYYY-MM-DD, or null) for when the fact is TRUE IN THE WORLD, drawn from the
+  text ("effective May 2024" -> valid_from "2024-05"; a 2023 edition -> 2023).
+  Two facts with the same subject+relation but NON-overlapping validity are a
+  timeline (supersession), not a contradiction.
 
 CHUNKS:
 {ctx}
 
-JSON array of {{"subject","relation","object","qualifiers","chunk_id"}}:"""
-    return llm.complete_json(prompt, max_tokens=1200) or []
+JSON array of {{"subject","relation","object","qualifiers","valid_from","valid_until","chunk_id"}}:"""
+    return llm.complete_json(prompt, max_tokens=1400) or []
+
+
+def _temporal_overlap(a: dict, b: dict) -> bool:
+    """True if two triples' [valid_from, valid_until] windows overlap (or either
+    is open). Non-overlapping windows = supersession timeline, not a clash."""
+    def yr(v, default):
+        if not v:
+            return default
+        m = re.search(r"\d{4}", str(v))
+        return int(m.group(0)) if m else default
+    a_lo, a_hi = yr(a.get("valid_from"), -9999), yr(a.get("valid_until"), 9999)
+    b_lo, b_hi = yr(b.get("valid_from"), -9999), yr(b.get("valid_until"), 9999)
+    return a_lo <= b_hi and b_lo <= a_hi
 
 
 def _detect_clashes(triples: list, chunks_by_id: dict, question: str = "") -> list:
@@ -129,6 +147,12 @@ def _detect_clashes(triples: list, chunks_by_id: dict, question: str = "") -> li
                          != "superseded"}
             if len(live_vals) < 2:
                 continue
+
+        # bi-temporal guard (Zep): two values whose validity windows DON'T
+        # overlap are a supersession timeline, not a live contradiction
+        reps = [ts_[0] for ts_ in by_val.values()]
+        if len(reps) == 2 and not _temporal_overlap(reps[0], reps[1]):
+            continue
 
         # evidence voting (edge case A3): OCR-only outlier vs >=2 agreeing sources
         kind = "contradiction"
