@@ -1,5 +1,5 @@
 import { BlurFade } from '@/components/magicui/blur-fade'
-import { DotPattern } from '@/components/magicui/dot-pattern'
+import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { BorderBeam } from '@/components/magicui/border-beam'
 
@@ -64,7 +64,13 @@ function Shot({ label, caption }: { label: string; caption: string }) {
 
 export default function About() {
   return (
-    <div className="min-h-full bg-[#06080e] text-white/85 overflow-y-auto h-full">
+    <div className="min-h-full bg-[#06080e] text-white/85 overflow-y-auto h-full relative">
+      {/* full-page interactive grid background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <KineticGrid dotColor="#7f93b3" lineColor="#39d2c0" trailColor="#bc8cff"
+          spacing={34} radius={260} strength={4} />
+      </div>
+      <div className="relative z-10">
       {/* nav */}
       <nav className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#06080e]/85 backdrop-blur-xl">
         <div className="mx-auto max-w-[1120px] px-8 h-[60px] flex items-center gap-3">
@@ -84,7 +90,6 @@ export default function About() {
 
       {/* hero */}
       <div className="relative overflow-hidden">
-        <DotPattern className="[mask-image:radial-gradient(600px_circle_at_center,white,transparent)] opacity-40" />
         <div className="relative mx-auto max-w-[880px] px-8 pt-28 pb-16">
           <BlurFade inView={false}>
             <div className="text-[11.5px] uppercase tracking-[0.18em] text-[#39d2c0] font-medium mb-6">Introducing TruthGuard</div>
@@ -111,27 +116,8 @@ export default function About() {
         </div>
       </div>
 
-      {/* graph */}
-      <BlurFade delay={0.1}>
-        <div className="mx-auto max-w-[1120px] px-8 pb-6">
-          <div className="relative rounded-2xl border border-white/[0.08] overflow-hidden h-[440px] bg-[#05070f]">
-            <BorderBeam duration={9} size={90} />
-            <div className="absolute inset-0 grid place-items-center text-white/25 text-[13px] text-center px-8">
-              live 3-plane context graph<br />
-              <span className="text-[11.5px] text-white/15">start the graph server on :7787 to render</span>
-            </div>
-            <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />
-            <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
-              style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
-              <span className="text-white/80 font-medium">The context graph, live.</span> Every conversation,
-              document, and codebase in one structure. Drag to rotate.
-            </div>
-          </div>
-        </div>
-      </BlurFade>
-
       {/* problem */}
-      <Section className="mt-8">
+      <Section className="mt-14">
         <div id="problem" />
         <BlurFade><Eyebrow>The problem</Eyebrow><H3>Four ways retrieval quietly lies</H3></BlurFade>
         <BlurFade delay={0.06}><P>
@@ -294,9 +280,26 @@ export default function About() {
           The planes are cross-wired: a chat turn links to the document passage it grounded on and the code it
           referenced, so any claim can be traced back to its source in one hop.
         </P></BlurFade>
-        <Shot label="[ screenshot: 3D graph — layer by layer ]"
-          caption="Three planes, one structure. Documents above, conversation in the middle, code below — connected by grounding and reference edges." />
       </Section>
+
+      {/* live graph — placed after the memory explanation, where it has context */}
+      <BlurFade delay={0.08}>
+        <div className="mx-auto max-w-[1120px] px-8 pb-20">
+          <div className="relative rounded-2xl border border-white/[0.08] overflow-hidden h-[460px] bg-[#05070f]">
+            <BorderBeam duration={9} size={90} />
+            <div className="absolute inset-0 grid place-items-center text-white/25 text-[13px] text-center px-8">
+              live 3-plane context graph<br />
+              <span className="text-[11.5px] text-white/15">start the graph server on :7787 to render</span>
+            </div>
+            <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />
+            <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
+              style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
+              <span className="text-white/80 font-medium">The context graph, live.</span> Documents above,
+              conversation in the middle, code below — drag to rotate.
+            </div>
+          </div>
+        </div>
+      </BlurFade>
 
       {/* reproduction */}
       <Section>
@@ -345,6 +348,7 @@ export default function About() {
       <footer className="border-t border-white/[0.06] py-14 text-center text-[13px] text-white/30">
         TruthGuard — self-correcting RAG over messy documents, with a context memory that persists across models and sessions.
       </footer>
+      </div>
     </div>
   )
 }
