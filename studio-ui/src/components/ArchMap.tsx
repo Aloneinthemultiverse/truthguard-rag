@@ -100,9 +100,17 @@ export function ArchMap() {
             <marker id="ah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
               <path d="M0,0 L7,3.5 L0,7 z" fill="rgba(255,255,255,0.28)" />
             </marker>
-            <marker id="ahOn" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-              <path d="M0,0 L7,3.5 L0,7 z" fill={G} />
+            <marker id="ahOn" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill={G} />
             </marker>
+            <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="3.2" result="b" />
+              <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+            <filter id="glowSoft" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="2" result="b" />
+              <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
           </defs>
 
           {/* layer bands */}
@@ -115,18 +123,19 @@ export function ArchMap() {
             const on = edgeOn(a, b)
             const dim = focus && !on
             return (
-              <g key={i} opacity={dim ? 0.13 : 1}>
+              <g key={i} opacity={dim ? 0.16 : 1}>
                 <path d={curve(pa, pb)} fill="none"
-                  stroke={on ? G : 'rgba(255,255,255,0.22)'} strokeWidth={on ? 1.6 : 1}
+                  stroke={on ? G : 'rgba(255,255,255,0.3)'} strokeWidth={on ? 2.4 : 1.1}
+                  filter={on ? 'url(#glow)' : undefined}
                   markerEnd={on ? 'url(#ahOn)' : 'url(#ah)'} />
                 {on && (
-                  <circle r="2.6" fill={G}>
+                  <circle r="3.4" fill="#fff" filter="url(#glow)">
                     <animateMotion dur="1.6s" repeatCount="indefinite" path={curve(pa, pb)} />
                   </circle>
                 )}
                 {label && on && (
                   <text x={(pa.x + NW + pb.x) / 2} y={(pa.y + pb.y) / 2 + NH / 2 - 7}
-                    textAnchor="middle" fontSize="9.5" fill={G} fontFamily="ui-monospace,monospace">{label}</text>
+                    textAnchor="middle" fontSize="11" fontWeight="600" fill={G} fontFamily="ui-monospace,monospace">{label}</text>
                 )}
               </g>
             )
@@ -139,19 +148,23 @@ export function ArchMap() {
             const adj = focus && near!.has(c.id)
             const dim = isDim(c.id)
             return (
-              <g key={c.id} transform={`translate(${p.x},${p.y})`} opacity={dim ? 0.22 : 1}
+              <g key={c.id} transform={`translate(${p.x},${p.y})`} opacity={dim ? 0.3 : 1}
                 onMouseEnter={() => setHover(c.id)} onMouseLeave={() => setHover(null)}
                 onClick={() => setSel(c.id)} style={{ cursor: 'pointer' }}>
+                <rect x={-8} y={-8} width={NW + 16} height={NH + 16} fill="transparent" />
                 <rect width={NW} height={NH} rx={c.kind === 'database' ? 5 : 9}
-                  fill={on ? 'rgba(61,220,151,0.16)' : adj ? 'rgba(61,220,151,0.06)' : 'rgba(255,255,255,0.03)'}
-                  stroke={on ? G : adj ? 'rgba(61,220,151,0.5)' : 'rgba(255,255,255,0.16)'}
-                  strokeWidth={on ? 1.6 : 1}
-                  strokeDasharray={c.kind === 'client' ? '4 3' : undefined} />
+                  fill={on ? 'rgba(61,220,151,0.3)' : adj ? 'rgba(61,220,151,0.12)' : 'rgba(255,255,255,0.04)'}
+                  stroke={on ? G : adj ? G : 'rgba(255,255,255,0.22)'}
+                  strokeWidth={on ? 2.2 : adj ? 1.5 : 1}
+                  filter={on ? 'url(#glow)' : adj ? 'url(#glowSoft)' : undefined}
+                  strokeDasharray={c.kind === 'client' ? '4 3' : undefined}
+                  style={{ transition: 'all .18s ease' }} />
                 <text x={10} y={16} fontSize="10" fill={on ? G : 'rgba(255,255,255,0.3)'}
                   fontFamily="ui-monospace,monospace">
                   {c.kind === 'database' ? '▪' : c.kind === 'client' ? '◇' : '▸'} {c.layer.toLowerCase()}
                 </text>
-                <text x={10} y={31} fontSize="12" fill={on ? '#fff' : 'rgba(255,255,255,0.78)'}>
+                <text x={10} y={31} fontSize="12" fontWeight={on ? 600 : 400}
+                  fill={on ? '#fff' : adj ? '#fff' : 'rgba(255,255,255,0.8)'}>
                   {c.label.length > 20 ? c.label.slice(0, 19) + '…' : c.label}
                 </text>
               </g>
