@@ -85,6 +85,7 @@ export default function About() {
             <a href="#problem" className="hover:text-white transition">Problem</a>
             <a href="#how" className="hover:text-white transition">How it works</a>
             <a href="#results" className="hover:text-white transition">Results</a>
+            <a href="/architecture" className="hover:text-white transition">Architecture</a>
             <a href="/" className="hover:text-white transition">Studio →</a>
           </div>
         </div>
@@ -118,7 +119,7 @@ export default function About() {
           <BlurFade inView={false} delay={0.24}>
             <div className="flex gap-3 mt-9">
               <a href="/" className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
-              <a href="/architecture.html" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Read the architecture</a>
+              <a href="/architecture" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Read the architecture</a>
             </div>
           </BlurFade>
         </div>
@@ -352,7 +353,7 @@ export default function About() {
         <BlurFade delay={0.2}>
           <div className="flex gap-3 mt-10">
             <a href="/" className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
-            <a href="/architecture.html" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Architecture</a>
+            <a href="/architecture" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Architecture</a>
           </div>
         </BlurFade>
       </Section>
