@@ -187,6 +187,59 @@ def benchmarks():
     return out
 
 
+_ENV_PATH = os.path.join(ROOT, ".env")
+_MASK = lambda v: (v[:6] + "…" + v[-4:]) if v and len(v) > 12 else ("set" if v else "")
+
+
+class ConfigBody(BaseModel):
+    llm_api_key: str | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    llm_provider: str | None = None
+    mistral_ocr_api_key: str | None = None
+
+
+@app.get("/config")
+def get_config():
+    """Masked view of the current provider settings — never returns full keys."""
+    from . import config as cfg
+    return {
+        "llm_provider": cfg.LLM_PROVIDER,
+        "llm_base_url": cfg.LLM_BASE_URL,
+        "llm_model": cfg.LLM_MODEL,
+        "llm_api_key": _MASK(cfg.LLM_API_KEY),
+        "mistral_ocr_api_key": _MASK(cfg.MISTRAL_OCR_API_KEY),
+        "llm_ready": bool(cfg.LLM_API_KEY),
+        "ocr_ready": bool(cfg.MISTRAL_OCR_API_KEY),
+    }
+
+
+@app.post("/config")
+def set_config(body: ConfigBody):
+    """Write provider settings to .env and hot-reload them. Local use only —
+    the server binds to 127.0.0.1 and keys are never echoed back."""
+    import re
+    from . import config as cfg
+    updates = {
+        "LLM_API_KEY": body.llm_api_key, "LLM_BASE_URL": body.llm_base_url,
+        "LLM_MODEL": body.llm_model, "LLM_PROVIDER": body.llm_provider,
+        "MISTRAL_OCR_API_KEY": body.mistral_ocr_api_key,
+    }
+    updates = {k: v for k, v in updates.items() if v}
+    if not updates:
+        return {"ok": False, "error": "nothing to update"}
+    env = open(_ENV_PATH, encoding="utf-8").read() if os.path.exists(_ENV_PATH) else ""
+    for k, v in updates.items():
+        env = (re.sub(rf"^{k}=.*$", f"{k}={v}", env, flags=re.M)
+               if re.search(rf"^{k}=", env, re.M) else env.rstrip("\n") + f"\n{k}={v}\n")
+        setattr(cfg, k, v)              # hot-reload for this process
+        os.environ[k] = v
+    with open(_ENV_PATH, "w", encoding="utf-8") as f:
+        f.write(env)
+    _state["llm"] = None                # force a fresh client on next call
+    return {"ok": True, "updated": sorted(updates)}
+
+
 @app.get("/")
 def studio():
     return FileResponse(os.path.join(ROOT, "studio.html"))

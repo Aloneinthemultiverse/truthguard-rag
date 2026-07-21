@@ -1,48 +1,90 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
-import { BorderBeam } from '@/components/magicui/border-beam'
+import { motion, AnimatePresence } from 'motion/react'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { AnimatedShinyText } from '@/components/magicui/animated-shiny-text'
 
+const G = '#3ddc97'
 const API = 'http://127.0.0.1:7788'
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
+const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
 
-type Trace = { step: string }
-type Msg = {
-  role: 'q' | 'a'; text?: string; kind?: string; trace?: Trace[]
-  confidence?: number | null; band?: string; citations?: string[]
-  dual?: { object?: string; value?: string; source?: string }[]; loading?: boolean
-}
+type Msg = { role: 'q' | 'a'; text?: string; kind?: string; trace?: { step: string }[]
+  confidence?: number | null; band?: string; citations?: string[]; loading?: boolean }
 
-const EXAMPLES = [
-  'what is the travel reimbursement limit?',
-  'is the travel limit $300 or $500?',
-  'what is the meal allowance?',
-]
+const EXAMPLES = ['what is the travel reimbursement limit?', 'is the travel limit $300 or $500?', 'what is the meal allowance?']
 
 function Chip({ t, i }: { t: string; i: number }) {
-  const warn = /clash|contradic|insufficient|refus|unavail/.test(t)
-  const bad = /error/.test(t)
+  const warn = /clash|contradic|insufficient|refus|unavail|error/.test(t)
   return (
-    <motion.span
-      initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: i * 0.07 }}
-      className={`text-[11px] font-medium px-2.5 py-[3px] rounded-full border ${
-        bad ? 'bg-[#2e1414] text-[#ff6b6b] border-[#4a1c1c]'
-        : warn ? 'bg-[#2e2410] text-amber border-[#4a3a12]'
-        : 'bg-[#0f2b2a] text-teal border-[#1c4a45]'}`}>{t}</motion.span>
+    <motion.span initial={{ opacity: 0, scale: .85 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * .07 }}
+      className="text-[11px] font-medium px-2.5 py-[3px] rounded-full border"
+      style={warn ? { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.75)', borderColor: 'rgba(255,255,255,0.2)' }
+        : { background: 'rgba(61,220,151,0.1)', color: G, borderColor: 'rgba(61,220,151,0.3)' }}>{t}</motion.span>
   )
 }
 
-function Ring({ v }: { v: number }) {
-  const pct = Math.round(v * 100)
-  const color = v >= 0.75 ? '#39d2c0' : v >= 0.4 ? '#e3b341' : '#ff6b6b'
+function Settings({ onClose }: { onClose: () => void }) {
+  const [cfg, setCfg] = useState<any>(null)
+  const [f, setF] = useState<any>({})
+  const [saved, setSaved] = useState('')
+  useEffect(() => { fetch(API + '/config').then(r => r.json()).then(setCfg).catch(() => {}) }, [])
+  const save = async () => {
+    setSaved('saving…')
+    try {
+      const r = await (await fetch(API + '/config', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) })).json()
+      setSaved(r.ok ? `saved — ${r.updated.join(', ')}` : r.error)
+      fetch(API + '/config').then(x => x.json()).then(setCfg)
+      setF({})
+    } catch { setSaved('failed — is the API running?') }
+  }
+  const Field = ({ k, label, ph, cur }: any) => (
+    <label className="block mb-4">
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <span className="text-[13px] text-white/70">{label}</span>
+        {cur && <span className="font-mono text-[11px] text-white/25">current: {cur}</span>}
+      </div>
+      <input type={k.includes('key') ? 'password' : 'text'} placeholder={ph}
+        value={f[k] ?? ''} onChange={e => setF({ ...f, [k]: e.target.value })}
+        className="w-full bg-black/50 border border-white/[0.12] rounded-lg px-3.5 py-2.5 text-[13px]
+          text-white outline-none focus:border-[#3ddc97] transition font-mono" />
+    </label>
+  )
   return (
-    <div className="relative w-10 h-10 shrink-0 rounded-full grid place-items-center"
-      style={{ background: `conic-gradient(${color} ${pct}%, #182338 0)` }}>
-      <div className="absolute inset-1 rounded-full bg-panel" />
-      <span className="relative text-[11px] font-semibold">{pct}</span>
-    </div>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="absolute inset-0 z-50 bg-black/70 backdrop-blur-sm grid place-items-center p-6" onClick={onClose}>
+      <motion.div initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} onClick={e => e.stopPropagation()}
+        className="w-full max-w-[520px] rounded-2xl border border-white/[0.12] bg-[#0a0d10] p-7">
+        <div className="flex items-baseline mb-1">
+          <h3 className="font-serif-display text-[26px] text-white">Providers</h3>
+          <button onClick={onClose} className="ml-auto text-white/30 hover:text-white text-[20px] leading-none">×</button>
+        </div>
+        <p className="text-[13px] text-white/40 mb-6 leading-relaxed">
+          Keys are written to <span className="font-mono text-white/60">.env</span> on this machine and never leave it.
+          Leave a field blank to keep its current value.
+        </p>
+        <div className="flex gap-2 mb-5">
+          {[['llm_ready', 'LLM'], ['ocr_ready', 'Mistral OCR']].map(([k, l]) => (
+            <span key={k} className="text-[11.5px] px-2.5 py-1 rounded-md border font-mono"
+              style={cfg?.[k] ? { color: G, borderColor: 'rgba(61,220,151,0.35)', background: 'rgba(61,220,151,0.08)' }
+                : { color: 'rgba(255,255,255,0.3)', borderColor: 'rgba(255,255,255,0.12)' }}>
+              {l} {cfg?.[k] ? 'connected' : 'not set'}
+            </span>
+          ))}
+        </div>
+        <Field k="llm_api_key" label="LLM API key" ph="nvapi-… / sk-…" cur={cfg?.llm_api_key} />
+        <Field k="llm_base_url" label="LLM base URL" ph="https://integrate.api.nvidia.com/v1" cur={cfg?.llm_base_url} />
+        <Field k="llm_model" label="Model" ph="deepseek-ai/deepseek-v4-pro" cur={cfg?.llm_model} />
+        <Field k="llm_provider" label="Provider" ph="openai | anthropic" cur={cfg?.llm_provider} />
+        <div className="h-px bg-white/[0.08] my-5" />
+        <Field k="mistral_ocr_api_key" label="Mistral OCR key (optional)" ph="for tier-2 OCR escalation" cur={cfg?.mistral_ocr_api_key} />
+        <div className="flex items-center gap-3 mt-6">
+          <button onClick={save} className="px-5 py-2.5 rounded-lg text-[14px] font-medium text-black"
+            style={{ background: G }}>Save</button>
+          <span className="text-[12.5px]" style={{ color: saved.startsWith('saved') ? G : 'rgba(255,255,255,0.4)' }}>{saved}</span>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -50,16 +92,21 @@ export default function App() {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [q, setQ] = useState('')
   const [stats, setStats] = useState({ nodes: 0, turns: 0 })
+  const [ready, setReady] = useState<boolean | null>(null)
+  const [showSet, setShowSet] = useState(false)
   const [greeted, setGreeted] = useState(true)
   const pending = useRef<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const poll = async () => {
-      try { const s = await (await fetch(API + '/stats')).json(); setStats({ nodes: s.nodes, turns: s.turns }) } catch {}
+      try {
+        const s = await (await fetch(API + '/stats')).json(); setStats({ nodes: s.nodes, turns: s.turns })
+        const c = await (await fetch(API + '/config')).json(); setReady(c.llm_ready)
+      } catch { setReady(false) }
     }
-    poll(); const id = setInterval(poll, 6000); return () => clearInterval(id)
-  }, [])
+    poll(); const id = setInterval(poll, 8000); return () => clearInterval(id)
+  }, [showSet])
   useEffect(() => { scroller.current?.scrollTo({ top: 9e9, behavior: 'smooth' }) }, [msgs])
 
   async function ask(text: string) {
@@ -70,141 +117,139 @@ export default function App() {
     try {
       const body: any = pending.current ? { question: pending.current, followup: text } : { question: text }
       pending.current = null
-      const r = await (await fetch(API + '/ask', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      })).json()
+      const r = await (await fetch(API + '/ask', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json()
       if (r.kind === 'clarify') pending.current = text
       setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', ...r }; return c })
     } catch {
-      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', text: 'API offline — run: uvicorn truthguard.api:app --port 7788', kind: 'error', trace: [{ step: 'error' }] }; return c })
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', kind: 'error',
+        text: 'API not reachable — run: uvicorn truthguard.api:app --port 7788', trace: [{ step: 'offline' }] }; return c })
     }
   }
 
   async function onDrop(e: React.DragEvent) {
     e.preventDefault(); const f = e.dataTransfer.files[0]; if (!f) return
     const fd = new FormData(); fd.append('file', f)
-    setMsgs(m => [...m, { role: 'a', text: `ingesting ${f.name}…`, trace: [{ step: 'ingest' }], kind: 'ingest' }])
+    setMsgs(m => [...m, { role: 'a', text: `ingesting ${f.name}…`, trace: [{ step: 'ingest' }] }])
     try {
       const r = await (await fetch(API + '/ingest/document', { method: 'POST', body: fd })).json()
-      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', text: `✓ ${r.file} — ${r.total_chunks} chunks (${r.engine})`, trace: [{ step: 'ingest' }], kind: 'ingested' }; return c })
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', kind: 'ingested',
+        text: `${r.file} — ${r.total_chunks} chunks (${r.engine})`, trace: [{ step: 'ingest' }] }; return c })
     } catch {}
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* header */}
-      <header className="flex items-center gap-3.5 px-5 py-3 border-b border-line bg-[#0a0f1dcc] backdrop-blur-xl z-10">
-        <div className="w-[30px] h-[30px] rounded-[9px] relative shrink-0"
-          style={{ background: 'conic-gradient(from 210deg,#39d2c0,#bc8cff,#ff8c66,#39d2c0)', boxShadow: '0 0 22px #39d2c055' }}>
-          <div className="absolute inset-[6px] rounded-[5px] bg-[#0b1120]" />
+    <div className="h-full flex flex-col bg-[#050505] text-white/85 relative">
+      <AnimatePresence>{showSet && <Settings onClose={() => setShowSet(false)} />}</AnimatePresence>
+
+      <header className="flex items-center gap-3.5 px-5 py-3 border-b border-white/[0.07] bg-black/60 backdrop-blur-xl z-10">
+        <div className="w-[26px] h-[26px] rounded-lg relative shrink-0" style={{ background: G }}>
+          <div className="absolute inset-[5px] rounded-[3px] bg-[#050505]" />
         </div>
         <div>
-          <div className="text-[15px] font-semibold">TruthGuard Studio</div>
-          <div className="text-[11px] text-mut">self-correcting RAG · 3-plane context memory</div>
+          <div className="text-[15px] font-semibold text-white">TruthGuard Studio</div>
+          <div className="text-[11px] text-white/35">self-correcting RAG · 3-plane context memory</div>
         </div>
-        <div className="ml-auto flex gap-2 items-center">
-          <span className="flex items-center gap-1.5 text-xs text-mut bg-[#0d1426] border border-line px-3 py-[5px] rounded-full">
-            <span className="w-[7px] h-[7px] rounded-full bg-[#41d18a] animate-pulse" style={{ boxShadow: '0 0 8px #41d18a' }} />live
+        <div className="ml-auto flex items-center gap-2.5 text-[12.5px]">
+          <a href="/about" className="text-white/40 hover:text-white transition px-2">About</a>
+          <a href="/architecture" className="text-white/40 hover:text-white transition px-2">Architecture</a>
+          <span className="px-3 py-[5px] rounded-full border font-mono text-[11.5px]"
+            style={ready ? { color: G, borderColor: 'rgba(61,220,151,0.3)', background: 'rgba(61,220,151,0.07)' }
+              : { color: 'rgba(255,255,255,0.4)', borderColor: 'rgba(255,255,255,0.14)' }}>
+            {ready === null ? '…' : ready ? 'llm connected' : 'no llm key'}
           </span>
-          <span className="text-xs text-mut bg-[#0d1426] border border-line px-3 py-[5px] rounded-full">
-            <b className="text-teal font-semibold"><NumberTicker value={stats.nodes} /></b> nodes · <b className="text-teal font-semibold">{stats.turns}</b> turns
+          <span className="text-white/35 text-[12px] font-mono">
+            <NumberTicker value={stats.nodes} /> nodes · {stats.turns} turns
           </span>
+          <button onClick={() => setShowSet(true)}
+            className="w-8 h-8 rounded-lg border border-white/[0.12] text-white/50 hover:text-white hover:border-white/30 transition">⚙</button>
         </div>
       </header>
 
-      <main className="flex-1 grid grid-cols-[58px_1.25fr_1fr] min-h-0">
-        {/* nav */}
-        <nav className="flex flex-col items-center gap-1.5 py-3.5 border-r border-line bg-[#0a0f1d]">
-          {['◆', '◈', '⌘', '▤'].map((c, i) => (
-            <div key={i} className={`w-[38px] h-[38px] rounded-[11px] grid place-items-center cursor-pointer transition text-[18px] ${
-              i === 0 ? 'text-teal bg-[#0f2b2a]' : 'text-[#5b6b8c] hover:text-white hover:bg-[#131f36]'}`}
-              onClick={() => i === 2 && window.open('/architecture.html', '_blank')}>{c}</div>
-          ))}
-        </nav>
-
-        {/* chat */}
-        <div className="flex flex-col min-w-0 border-r border-line">
+      <main className="flex-1 grid grid-cols-[1.25fr_1fr] min-h-0">
+        <div className="flex flex-col min-w-0 border-r border-white/[0.07]">
           <div ref={scroller} className="flex-1 overflow-y-auto px-6 pt-6 pb-2 flex flex-col gap-4">
             {greeted ? (
-              <div className="m-auto text-center max-w-[360px] text-mut text-[13px] leading-relaxed">
-                <div className="text-white text-[15px] font-semibold mb-1.5">Ask your documents, code, or past chats</div>
-                Every answer shows its reasoning trace, confidence, and sources — and refuses or dual-answers instead of guessing.
-                <div className="mt-3 flex flex-wrap gap-2 justify-center">
+              <div className="m-auto text-center max-w-[380px]">
+                <div className="font-serif-display text-[30px] text-white mb-3">Ask your corpus</div>
+                <p className="text-[13.5px] text-white/40 leading-relaxed mb-5">
+                  Every answer shows its reasoning trace, confidence and sources — and refuses or dual-answers
+                  rather than guessing.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
                   {EXAMPLES.map(e => (
                     <span key={e} onClick={() => ask(e)}
-                      className="text-xs text-teal bg-[#0f2b2a] border border-[#1c4a45] px-3 py-1.5 rounded-full cursor-pointer hover:bg-[#143a37]">{e}</span>
+                      className="text-[12px] px-3 py-1.5 rounded-full cursor-pointer transition border"
+                      style={{ color: G, borderColor: 'rgba(61,220,151,0.3)', background: 'rgba(61,220,151,0.07)' }}>{e}</span>
                   ))}
                 </div>
-              </div>
-            ) : msgs.map((m, i) => (
-              <AnimatePresence key={i}>
-                {m.role === 'q' ? (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    className="self-end max-w-[78%] px-4 py-2.5 rounded-[16px_16px_4px_16px] text-sm leading-relaxed border border-[#28395c]"
-                    style={{ background: 'linear-gradient(135deg,#213255,#182740)' }}>{m.text}</motion.div>
-                ) : (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    className="self-start max-w-[92%] relative px-4 py-3.5 rounded-[16px_16px_16px_4px] text-sm leading-relaxed bg-panel border border-line overflow-hidden">
-                    {(m.kind === 'clarify' || m.kind === 'dual_answer') && <BorderBeam duration={5} />}
-                    {m.loading ? (
-                      <AnimatedShinyText className="text-[13px]">retrieve → assess → verify…</AnimatedShinyText>
-                    ) : (<>
-                      <div className="flex gap-1.5 flex-wrap mb-3">
-                        {(m.trace || []).map((t, j) => <Chip key={j} t={t.step} i={j} />)}
-                        {m.kind && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: (m.trace?.length || 0) * 0.07 }}
-                          className="text-[11px] font-medium px-2.5 py-[3px] rounded-full bg-[#221a3d] text-purple border border-[#3a2d5c]">{m.kind}</motion.span>}
-                      </div>
-                      {m.dual && m.dual.length >= 2 ? (
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {m.dual.slice(0, 2).map((d, j) => (
-                            <div key={j} className="border border-[#28395c] rounded-xl px-3 py-2.5 bg-[#0c1424]">
-                              <div className="text-base font-semibold">{d.object || d.value}</div>
-                              <div className="text-[11px] text-mut mt-1">{d.source}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <div className="whitespace-pre-wrap">{m.text}</div>}
-                      {m.confidence != null && (
-                        <div className="flex items-center gap-2.5 mt-3">
-                          <Ring v={m.confidence} />
-                          <div className="text-xs text-mut">confidence · <b className="text-white">{m.band}</b></div>
-                        </div>
-                      )}
-                      {m.citations && m.citations.length > 0 && (
-                        <div className="mt-2.5 flex gap-1.5 flex-wrap">
-                          {m.citations.map((c, j) => <span key={j} className="text-[11px] text-[#5ea1ff] bg-[#0d1a30] border border-[#1a3050] px-2.5 py-1 rounded-lg">{c}</span>)}
-                        </div>
-                      )}
-                    </>)}
-                  </motion.div>
+                {ready === false && (
+                  <button onClick={() => setShowSet(true)}
+                    className="mt-6 text-[12.5px] text-white/50 underline underline-offset-4 hover:text-white">
+                    no LLM key set — add one
+                  </button>
                 )}
-              </AnimatePresence>
+              </div>
+            ) : msgs.map((m, i) => m.role === 'q' ? (
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="self-end max-w-[78%] px-4 py-2.5 rounded-[14px_14px_4px_14px] text-[14px] leading-relaxed
+                  border border-white/[0.12] bg-white/[0.05]">{m.text}</motion.div>
+            ) : (
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="self-start max-w-[92%] px-4 py-3.5 rounded-[14px_14px_14px_4px] text-[14px] leading-relaxed
+                  border border-white/[0.09] bg-white/[0.02]">
+                {m.loading ? <AnimatedShinyText className="text-[13px]">retrieve → assess → verify…</AnimatedShinyText> : (<>
+                  <div className="flex gap-1.5 flex-wrap mb-3">
+                    {(m.trace || []).map((t, j) => <Chip key={j} t={t.step} i={j} />)}
+                    {m.kind && <Chip t={m.kind} i={(m.trace?.length || 0)} />}
+                  </div>
+                  <div className="whitespace-pre-wrap text-white/80">{m.text}</div>
+                  {m.confidence != null && (
+                    <div className="flex items-center gap-3 mt-3.5">
+                      <div className="relative w-9 h-9 grid place-items-center rounded-full"
+                        style={{ background: `conic-gradient(${G} ${Math.round(m.confidence * 100)}%, rgba(255,255,255,0.08) 0)` }}>
+                        <div className="absolute inset-[3px] rounded-full bg-[#0a0d10]" />
+                        <span className="relative text-[11px] font-semibold">{Math.round(m.confidence * 100)}</span>
+                      </div>
+                      <span className="text-[12.5px] text-white/40">confidence · <b className="text-white/80">{m.band}</b></span>
+                    </div>
+                  )}
+                  {m.citations?.length ? (
+                    <div className="mt-3 flex gap-1.5 flex-wrap">
+                      {m.citations.map((c, j) => (
+                        <span key={j} className="text-[11px] font-mono px-2.5 py-1 rounded-md border border-white/[0.1] text-white/45">{c}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                </>)}
+              </motion.div>
             ))}
           </div>
 
           <div className="px-6">
             <div onDragOver={e => e.preventDefault()} onDrop={onDrop}
-              className="border-[1.5px] border-dashed border-[#28395c] rounded-xl p-2.5 text-center text-[12.5px] text-[#5b6b8c] mb-3 transition hover:border-teal hover:text-teal">
+              className="border border-dashed border-white/[0.14] rounded-xl p-2.5 text-center text-[12.5px]
+                text-white/30 mb-3 transition hover:border-[#3ddc97] hover:text-[#3ddc97]">
               drop a PDF · DOCX · MD to ingest — the graph grows live
             </div>
           </div>
           <div className="flex gap-2.5 px-6 pb-5">
             <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && ask(q)}
               placeholder="Ask anything…"
-              className="flex-1 bg-panel border border-[#28395c] rounded-[13px] text-white px-4 py-3 text-sm outline-none focus:border-teal transition" />
-            <button onClick={() => ask(q)}
-              className="rounded-[13px] text-[#052018] font-semibold px-5 text-sm transition hover:brightness-110 active:scale-95"
-              style={{ background: 'linear-gradient(135deg,#39d2c0,#2ba894)' }}>Ask</button>
+              className="flex-1 bg-white/[0.03] border border-white/[0.12] rounded-xl text-white px-4 py-3
+                text-[14px] outline-none focus:border-[#3ddc97] transition" />
+            <button onClick={() => ask(q)} className="rounded-xl text-black font-medium px-5 text-[14px]
+              transition hover:brightness-110 active:scale-95" style={{ background: G }}>Ask</button>
           </div>
         </div>
 
-        {/* graph */}
         <div className="flex flex-col min-w-0">
-          <div className="flex gap-1 px-4 py-2.5 border-b border-line items-center">
-            <span className="text-xs text-white bg-[#131f36] px-3 py-1.5 rounded-lg">3D graph</span>
-            <span className="ml-auto text-xs text-teal font-semibold"><NumberTicker value={stats.nodes} /> nodes</span>
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.07]">
+            <span className="text-[12.5px] text-white/70">3-plane graph</span>
+            <span className="ml-auto font-mono text-[11.5px]" style={{ color: G }}>live</span>
           </div>
-          <iframe src={GRAPH} className="flex-1 w-full border-0 bg-[#05070f]" />
+          {IS_LOCAL ? <iframe src={GRAPH} className="flex-1 w-full border-0 bg-black" />
+            : <div className="flex-1 grid place-items-center text-white/25 text-[13px]">graph runs locally</div>}
         </div>
       </main>
     </div>
