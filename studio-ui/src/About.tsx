@@ -3,6 +3,7 @@ import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { BorderBeam } from '@/components/magicui/border-beam'
 import { BehaviorRadar } from '@/components/BehaviorRadar'
+import TextMorph from '@/components/TextMorph'
 
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
@@ -91,10 +92,15 @@ export default function About() {
 
       {/* hero */}
       <div className="relative overflow-hidden">
-        <div className="aurora" />
         <div className="relative mx-auto max-w-[880px] px-8 pt-28 pb-16">
+          <div className="h-[86px] -mt-4 mb-1">
+            <TextMorph words={'TRUTHGUARD\nANSWER\nCLARIFY\nREFUSE'}
+              color="rgb(235,242,252)"
+              transition={{ duration: 0.9, delay: 1.6, ease: 'easeInOut' }}
+              font={{ fontFamily: "'Instrument Serif', serif", fontSize: 60, lineHeight: '1.2em', textAlign: 'left' }} />
+          </div>
           <BlurFade inView={false}>
-            <div className="text-[11.5px] uppercase tracking-[0.18em] text-[#39d2c0] font-medium mb-6">Introducing TruthGuard</div>
+            <div className="text-[11.5px] uppercase tracking-[0.18em] text-[#39d2c0] font-medium mb-6">Self-correcting RAG · 3-plane context memory</div>
           </BlurFade>
           <BlurFade inView={false} delay={0.08}>
             <h1 className="font-serif-display text-[84px] leading-[0.98] text-white mb-7">
