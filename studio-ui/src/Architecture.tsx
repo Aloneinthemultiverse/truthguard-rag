@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { BlurFade } from '@/components/magicui/blur-fade'
 import { KineticGrid } from '@/components/magicui/kinetic-grid'
+import { ComponentExplorer, COMPONENTS } from '@/components/ComponentExplorer'
+import { ArchMap } from '@/components/ArchMap'
 
 const G = '#3ddc97'          // the only accent
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
@@ -307,25 +309,32 @@ export default function Architecture() {
           <PipelineSim />
         </Section>
 
-        <Section id="gate" eyebrow="02 · The assessment gate"
+        <Section id="components" eyebrow="02 · Components"
+          title={`${COMPONENTS.length} parts, one contract`}
+          lead="Every service, store and client in the system. Filter by layer, select any component to see what it does, how it is built, and the specifics that matter.">
+          <ArchMap />
+          <div className="mt-5"><ComponentExplorer /></div>
+        </Section>
+
+        <Section id="gate" eyebrow="03 · The assessment gate"
           title="Where the answer is decided"
           lead="Four checks run cheapest-first. Their combination selects the response mode — the generator has no say in whether it should have been called.">
           <GateExplorer />
         </Section>
 
-        <Section id="time" eyebrow="03 · Bi-temporal facts"
+        <Section id="time" eyebrow="04 · Bi-temporal facts"
           title="A changed value is not a contradiction"
           lead="Every extracted fact carries a validity window. Two values for the same subject only conflict if they claim to be true at the same time — otherwise they are a history.">
           <TemporalSim />
         </Section>
 
-        <Section id="retrieval" eyebrow="04 · Multi-signal retrieval"
+        <Section id="retrieval" eyebrow="05 · Multi-signal retrieval"
           title="Three signals, no single point of failure"
           lead="Dense vectors catch meaning, BM25 catches exact terms, entity matching catches names and dates. Reciprocal rank fusion combines them.">
           <FusionSim />
         </Section>
 
-        <Section id="memory" eyebrow="05 · Context memory"
+        <Section id="memory" eyebrow="06 · Context memory"
           title="Three planes, one graph"
           lead="Documents, conversation and code are compiled into a single structure and cross-wired, so any claim traces to its source in one hop.">
           <PlaneStack />
