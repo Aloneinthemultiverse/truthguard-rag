@@ -3,6 +3,7 @@ import { BlurFade } from '@/components/magicui/blur-fade'
 import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { ComponentExplorer, COMPONENTS } from '@/components/ComponentExplorer'
 import { ArchMap } from '@/components/ArchMap'
+import { MCPTools } from '@/components/MCPTools'
 
 const G = '#3ddc97'          // the only accent
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
@@ -284,6 +285,7 @@ export default function Architecture() {
               <a href="#gate" className="hover:text-white transition">The gate</a>
               <a href="#time" className="hover:text-white transition">Time</a>
               <a href="#memory" className="hover:text-white transition">Memory</a>
+              <a href="#mcp" className="hover:text-white transition">MCP</a>
               <a href="/about" className="hover:text-white transition">About →</a>
             </div>
           </div>
@@ -346,6 +348,12 @@ export default function Architecture() {
               <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />
             </div>
           </BlurFade>
+        </Section>
+
+        <Section id="mcp" eyebrow="07 · Interface"
+          title="Twelve tools, any model"
+          lead="The whole system is exposed as a stdio MCP server. Any client that speaks MCP — Claude Code, OpenCode, Antigravity, Cursor, Cherry Studio — connects to the same graph on disk and shares the same memory.">
+          <MCPTools />
         </Section>
 
         <footer className="border-t border-white/[0.07] py-14 text-center text-[13px] text-white/30">

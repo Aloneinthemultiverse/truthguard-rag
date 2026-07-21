@@ -4,6 +4,7 @@ import { NumberTicker } from '@/components/magicui/number-ticker'
 import { BorderBeam } from '@/components/magicui/border-beam'
 import { BehaviorRadar } from '@/components/BehaviorRadar'
 import TextMorph from '@/components/TextMorph'
+import { MCP_CLIENTS } from '@/components/MCPTools'
 
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
@@ -313,6 +314,52 @@ export default function About() {
           </div>
         </div>
       </BlurFade>
+
+      {/* transferable context router */}
+      <Section>
+        <BlurFade><Eyebrow>The context router</Eyebrow><H3>One memory, every model</H3></BlurFade>
+        <BlurFade delay={0.06}><P>
+          TruthGuard is a <span className="text-white/90">fully transferable context router</span>. The memory
+          does not live inside a chat window or a single vendor's account — it lives in a graph on your disk, and
+          any model that speaks MCP can read from it and write to it. Start a design discussion in one tool,
+          continue it in another a week later, and the second tool already knows what was decided and why.
+        </P></BlurFade>
+        <BlurFade delay={0.1}><P>
+          Ask a question and the router returns a single context block assembled from every plane at once —
+          the document passage that answers it, the code that implements it, the past turn where it was decided,
+          and the compiled truth of the topic it belongs to — bounded by a token budget so the model receives
+          signal rather than volume.
+        </P></BlurFade>
+
+        <div className="grid sm:grid-cols-3 gap-3 mt-8">
+          {[['Documents', 'PDFs, DOCX, Markdown, scanned pages with no text layer — read through a two-tier OCR ladder with per-word confidence.'],
+            ['Code repositories', 'Whole GitHub repos: call and import structure plus real function bodies extracted across 22+ languages.'],
+            ['Conversations', 'Any transcript — a Claude session file or plain user:/assistant: text — imported as its own thread and cross-linked.']].map(([t, d], i) => (
+            <BlurFade key={t} delay={0.06 + i * 0.07}>
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-full">
+                <div className="text-[15.5px] text-white font-medium mb-2">{t}</div>
+                <div className="text-[13.5px] leading-[1.6] text-white/45">{d}</div>
+              </div>
+            </BlurFade>
+          ))}
+        </div>
+
+        <BlurFade delay={0.14}>
+          <div className="mt-8 rounded-xl border border-white/[0.08] bg-white/[0.02] p-6">
+            <div className="text-[13px] text-white/45 mb-4">Works with any MCP client</div>
+            <div className="flex flex-wrap gap-2">
+              {MCP_CLIENTS.map(c => (
+                <span key={c} className="text-[13px] text-white/70 border border-[#39d2c0]/30 bg-[#39d2c0]/[0.06] px-3.5 py-1.5 rounded-lg">{c}</span>
+              ))}
+              <span className="text-[13px] text-white/35 border border-white/[0.1] px-3.5 py-1.5 rounded-lg">+ anything speaking MCP</span>
+            </div>
+            <div className="text-[12.5px] text-white/30 mt-4 pt-4 border-t border-white/[0.06]">
+              Twelve tools over stdio — ask, recall, get_context, ingest a document, a repo or a chat, query the
+              code graph, walk the context graph. <a href="/architecture#mcp" className="text-[#39d2c0]">Full tool list and setup →</a>
+            </div>
+          </div>
+        </BlurFade>
+      </Section>
 
       {/* reproduction */}
       <Section>
