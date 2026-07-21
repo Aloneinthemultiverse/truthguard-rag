@@ -31,6 +31,7 @@ MISTRAL_OCR_API_KEY = os.getenv("MISTRAL_OCR_API_KEY", "")
 # Retrieval
 TOP_K_FUSED = 50                # into rerank
 TOP_K_FINAL = 10                # into assessment
+CONTEXT_BUDGET_TOKENS = int(os.getenv("TG_CONTEXT_BUDGET", "4000"))  # hard cap on get_context
 N_INTERPRETATIONS = 3           # superposed multi-query
 RRF_K = 60
 

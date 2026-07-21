@@ -195,3 +195,8 @@ def studio():
 @app.get("/architecture.html")
 def architecture():
     return FileResponse(os.path.join(ROOT, "architecture.html"))
+
+
+@app.get("/about.html")
+def about():
+    return FileResponse(os.path.join(ROOT, "about.html"))

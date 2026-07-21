@@ -197,11 +197,49 @@ def format_recall(r: dict) -> str:
     return "\n".join(out)
 
 
-def get_context(question: str, storage_dir: str = None) -> str:
+def _fit_budget(parts: list, budget_tokens: int) -> str:
+    """Hard token budget with priority ranking (top memory systems cap at 2-4k;
+    unbounded context measurably degrades answer quality). Sections are kept in
+    evidence-first order and the first section to overflow is truncated; lower
+    priority sections are dropped entirely rather than half-shown."""
+    PRIORITY = ["## Document evidence", "## Code", "## Known facts",
+                "## Relevant past conversation", "## Topics"]
+    header, sections, cur = parts[0], {}, None
+    for line in parts[1:]:
+        key = next((p for p in PRIORITY if line.strip().startswith(p)), None)
+        if key:
+            cur = key
+            sections[cur] = [line]
+        elif cur:
+            sections[cur].append(line)
+    budget_chars = budget_tokens * 4                 # ~4 chars/token
+    out, used = [header], len(header)
+    for key in PRIORITY:
+        block = sections.get(key)
+        if not block:
+            continue
+        text = "\n".join(block)
+        if used + len(text) <= budget_chars:
+            out.append(text)
+            used += len(text)
+        else:
+            room = budget_chars - used
+            if room > 300:                            # only if usefully large
+                out.append(text[:room].rsplit("\n", 1)[0] + "\n  …[truncated to budget]")
+            break
+    return "\n".join(out)
+
+
+def get_context(question: str, storage_dir: str = None,
+                budget_tokens: int = None) -> str:
     """Context ROUTER: one call -> a ready-to-inject context block with the
     best of every plane (doc passages, code bodies, entities, compiled topic
     truths, past turns + their reference points). Any MCP client can prepend
-    this to its prompt — full context transfer across models and chats."""
+    this to its prompt — full context transfer across models and chats.
+
+    Bounded by CONTEXT_BUDGET_TOKENS (default 4000): evidence first, noise
+    dropped. Unbounded dumps measurably hurt answer accuracy."""
+    budget_tokens = budget_tokens or getattr(config, "CONTEXT_BUDGET_TOKENS", 4000)
     r = recall(question, top_k=3, storage_dir=storage_dir)
     parts = [f"### TruthGuard context for: {question}"]
     if r.get("communities"):
@@ -266,7 +304,7 @@ def get_context(question: str, storage_dir: str = None) -> str:
             parts.append(f"- {e['label'][:150]}")
     if len(parts) == 1:
         return "No stored context is relevant to this question."
-    return "\n".join(parts)
+    return _fit_budget(parts, budget_tokens)
 
 
 if __name__ == "__main__":

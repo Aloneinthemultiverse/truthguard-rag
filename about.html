@@ -1,0 +1,162 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TruthGuard — RAG that knows when it doesn't know</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#05070f;color:#c9d1d9;font-family:system-ui,-apple-system,sans-serif;
+ line-height:1.65;-webkit-font-smoothing:antialiased}
+.w{max-width:960px;margin:0 auto;padding:0 28px}
+a{color:#39d2c0;text-decoration:none}
+/* nav */
+nav{border-bottom:1px solid #1c2333;position:sticky;top:0;background:#05070fe6;backdrop-filter:blur(10px);z-index:9}
+nav .w{display:flex;align-items:center;gap:12px;height:58px}
+.mark{width:26px;height:26px;border-radius:7px;background:conic-gradient(from 210deg,#39d2c0,#bc8cff,#ff8c66,#39d2c0);position:relative}
+.mark::after{content:"";position:absolute;inset:5px;border-radius:4px;background:#05070f}
+nav b{color:#fff;font-size:15px;letter-spacing:.2px}
+nav .links{margin-left:auto;display:flex;gap:22px;font-size:13.5px;color:#8b949e}
+nav .links a{color:#8b949e}nav .links a:hover{color:#fff}
+/* hero */
+.hero{padding:88px 0 72px;text-align:center;border-bottom:1px solid #1c2333}
+.tagline{display:inline-block;font-size:12px;color:#39d2c0;background:#0f2b2a;border:1px solid #1c4a45;
+ padding:5px 14px;border-radius:20px;margin-bottom:24px;letter-spacing:.3px}
+h1{font-size:46px;line-height:1.15;color:#fff;font-weight:700;letter-spacing:-1px;margin-bottom:20px}
+h1 span{background:linear-gradient(100deg,#39d2c0,#bc8cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{font-size:18px;color:#8b949e;max-width:640px;margin:0 auto 32px}
+.cta{display:flex;gap:12px;justify-content:center}
+.btn{background:#1d9e75;color:#04120d;font-weight:600;padding:11px 24px;border-radius:10px;font-size:14.5px}
+.btn.alt{background:transparent;color:#c9d1d9;border:1px solid #30363d}
+/* sections */
+section{padding:64px 0;border-bottom:1px solid #1c2333}
+h2{font-size:13px;color:#8b949e;text-transform:uppercase;letter-spacing:1.6px;margin-bottom:10px;font-weight:600}
+h3{font-size:28px;color:#fff;font-weight:700;letter-spacing:-.4px;margin-bottom:16px}
+p.lead{font-size:16.5px;color:#8b949e;max-width:700px}
+/* problem grid */
+.probs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-top:32px}
+.prob{background:#0d1117;border:1px solid #1c2333;border-radius:12px;padding:20px}
+.prob .n{font-size:11px;color:#e24b4a;font-weight:700;letter-spacing:1px}
+.prob .t{font-size:15px;color:#fff;font-weight:600;margin:7px 0 6px}
+.prob .d{font-size:13.5px;color:#8b949e;line-height:1.55}
+/* flow */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:32px}
+.step{background:#0d1117;border:1px solid #1c2333;border-radius:12px;padding:18px;position:relative}
+.step.gate{border-color:#4a3a12;background:#16130a}
+.step .n{font-size:11px;color:#5b6b8c;font-weight:700}
+.step .t{font-size:15px;color:#fff;font-weight:600;margin:6px 0 7px}
+.step.gate .t{color:#e3b341}
+.step .d{font-size:13px;color:#8b949e;line-height:1.5}
+/* verdicts */
+.vs{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:26px}
+.v{border-radius:11px;padding:15px 17px;border:1px solid}
+.v .t{font-size:14.5px;font-weight:600}.v .d{font-size:13px;color:#8b949e;margin-top:5px;line-height:1.5}
+.v.a{background:#0d211f;border-color:#1c4a45}.v.a .t{color:#39d2c0}
+.v.b{background:#1a1530;border-color:#3a2d5c}.v.b .t{color:#bc8cff}
+.v.c{background:#2e2410;border-color:#4a3a12}.v.c .t{color:#e3b341}
+.v.d{background:#2e1414;border-color:#4a1c1c}.v.d .t{color:#ff6b6b}
+/* planes */
+.pl{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
+.p{border-radius:12px;padding:20px;border:1px solid}
+.p .l{font-size:11.5px;font-weight:700;letter-spacing:.8px}
+.p .n{font-size:17px;font-weight:600;margin:7px 0 9px}
+.p .d{font-size:13.5px;color:#8b949e;line-height:1.55}
+.p.yp{background:#0d211f;border-color:#1c4a45}.p.yp .l,.p.yp .n{color:#39d2c0}
+.p.x{background:#1a1530;border-color:#3a2d5c}.p.x .l,.p.x .n{color:#bc8cff}
+.p.ym{background:#2a1a12;border-color:#5c3a28}.p.ym .l,.p.ym .n{color:#ff8c66}
+.note{text-align:center;font-size:13px;color:#5b6b8c;margin-top:18px}
+.note code{background:#0d1117;border:1px solid #1c2333;padding:2px 8px;border-radius:6px;margin:0 3px;color:#8b949e}
+/* results */
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:30px}
+.r{background:#0d1117;border:1px solid #1c2333;border-radius:12px;padding:22px}
+.r .v{font-size:30px;font-weight:700;color:#39d2c0;letter-spacing:-.5px}
+.r .l{font-size:13.5px;color:#fff;margin-top:5px}
+.r .s{font-size:12px;color:#5b6b8c;margin-top:4px}
+/* stack */
+.stack{display:flex;flex-wrap:wrap;gap:9px;margin-top:26px}
+.tech{font-size:13px;color:#8b949e;background:#0d1117;border:1px solid #1c2333;padding:7px 14px;border-radius:8px}
+.tech b{color:#c9d1d9;font-weight:600}
+footer{padding:40px 0 60px;text-align:center;color:#5b6b8c;font-size:13px}
+@media(max-width:760px){.flow,.pl{grid-template-columns:1fr}h1{font-size:34px}}
+</style></head><body>
+
+<nav><div class="w"><div class="mark"></div><b>TruthGuard</b>
+ <div class="links"><a href="#problem">Problem</a><a href="#how">How it works</a><a href="#memory">Memory</a><a href="#results">Results</a><a href="/">Studio →</a></div>
+</div></nav>
+
+<div class="hero"><div class="w">
+ <span class="tagline">Self-correcting RAG · 3-plane context memory</span>
+ <h1>RAG that knows<br><span>when it doesn't know</span></h1>
+ <p class="sub">Standard RAG answers every question with equal confidence — including the ones it should refuse. TruthGuard puts an assessment gate between retrieval and generation, so the model is never asked to answer from bad context.</p>
+ <div class="cta"><a class="btn" href="/">Open Studio</a><a class="btn alt" href="/architecture.html">Architecture</a></div>
+</div></div>
+
+<section id="problem"><div class="w">
+ <h2>The problem</h2>
+ <h3>Four ways RAG lies to you</h3>
+ <p class="lead">Retrieval-augmented generation fails quietly. The answer looks confident and cites a source — but the source was wrong, missing, contradicted, or misread.</p>
+ <div class="probs">
+  <div class="prob"><div class="n">P1</div><div class="t">Blindness</div><div class="d">Scanned pages have no text layer. The retriever never sees them — so the fact simply doesn't exist.</div></div>
+  <div class="prob"><div class="n">P2</div><div class="t">Omission hallucination</div><div class="d">The answer isn't in the corpus at all, so the model invents one from partial context.</div></div>
+  <div class="prob"><div class="n">P3</div><div class="t">Silent arbitration</div><div class="d">Two documents disagree. The model silently picks one and never tells you there was a conflict.</div></div>
+  <div class="prob"><div class="n">P4</div><div class="t">Ambiguity collapse</div><div class="d">The question had two meanings. The model answers one and pretends the other never existed.</div></div>
+ </div>
+</div></section>
+
+<section id="how"><div class="w">
+ <h2>How it works</h2>
+ <h3>The generator never fires on bad context</h3>
+ <p class="lead">A model that isn't invoked on bad context cannot fabricate from it. Everything in the pipeline serves that one gate.</p>
+ <div class="flow">
+  <div class="step"><div class="n">01</div><div class="t">Ingest</div><div class="d">Mixed PDFs, scans, code-in-PDF → Markdown. No text layer → OCR ladder with per-word confidence.</div></div>
+  <div class="step"><div class="n">02</div><div class="t">Retrieve</div><div class="d">Three signals scored in parallel — vectors, keywords, entity matches — fused and reranked.</div></div>
+  <div class="step gate"><div class="n">03</div><div class="t">Assess gate</div><div class="d">Before any answer: sufficient? contradictory? ambiguous? Cheapest checks run first.</div></div>
+  <div class="step"><div class="n">04</div><div class="t">Respond</div><div class="d">Only now does the generator fire — or the system refuses, clarifies, or answers both ways.</div></div>
+ </div>
+ <div class="vs">
+  <div class="v a"><div class="t">Answer</div><div class="d">Clean context → generate with a confidence band and chunk-level citations.</div></div>
+  <div class="v b"><div class="t">Dual-answer</div><div class="d">Conflicting facts → show both with their sources. Never silently picks.</div></div>
+  <div class="v c"><div class="t">Clarify</div><div class="d">Ambiguous question → ask which one you meant, then re-run.</div></div>
+  <div class="v d"><div class="t">Refuse</div><div class="d">Not in the corpus → decline with gap analysis. No fabrication.</div></div>
+ </div>
+</div></section>
+
+<section id="memory"><div class="w">
+ <h2>Context memory</h2>
+ <h3>One graph for every conversation, document, and repo</h3>
+ <p class="lead">Memory isn't a chat log. Conversations, documents, and codebases become one global graph — so recall costs O(neighborhood), not O(history), and it persists across chats, sessions, and models via MCP.</p>
+ <div class="pl">
+  <div class="p yp"><div class="l">y+ · KNOWLEDGE</div><div class="n">Documents</div><div class="d">Provenance-tagged chunks, extracted entities, and community summaries with compiled truth per topic.</div></div>
+  <div class="p x"><div class="l">x · SPINE</div><div class="n">Conversation</div><div class="d">Turns as decision memory — confidence, decay, supersede. Each chat is its own thread.</div></div>
+  <div class="p ym"><div class="l">y− · CODE</div><div class="n">Codebase</div><div class="d">Call/import structure plus real function bodies across 22+ languages.</div></div>
+ </div>
+ <div class="note">cross-wired by <code>grounds</code><code>references</code><code>member_of</code><code>supersedes</code> — a chat turn traces to the passage <em>and</em> the code behind it</div>
+</div></section>
+
+<section id="results"><div class="w">
+ <h2>Results</h2>
+ <h3>Measured, not claimed</h3>
+ <p class="lead">Every number below comes from a reproducible run — one flag switches the correction layer off for a clean ablation.</p>
+ <div class="res">
+  <div class="r"><div class="v">20% → 7%</div><div class="l">Hallucination rate</div><div class="s">baseline vs corrected, 15 gold questions</div></div>
+  <div class="r"><div class="v">67% → 87%</div><div class="l">Correct behavior</div><div class="s">answer / refuse / clarify / dual-answer</div></div>
+  <div class="r"><div class="v">0.657</div><div class="l">LOCOMO recall@10</div><div class="s">n=300 · best of systems tested</div></div>
+  <div class="r"><div class="v">Zero</div><div class="l">Injections leaked</div><div class="s">adversarial battery, incl. planted $9,999</div></div>
+ </div>
+</div></section>
+
+<section><div class="w">
+ <h2>Built on</h2>
+ <h3>Deterministic where it counts</h3>
+ <p class="lead">Graph construction and retrieval are deterministic and local. The LLM is used for judgment, not for bookkeeping.</p>
+ <div class="stack">
+  <span class="tech"><b>DecisionGraph</b> · memory core</span>
+  <span class="tech"><b>turbovec</b> · 4-bit quantized vectors</span>
+  <span class="tech"><b>BM25</b> · keyword signal</span>
+  <span class="tech"><b>GitNexus</b> · code graph</span>
+  <span class="tech"><b>Tesseract + Mistral OCR</b> · two-tier ladder</span>
+  <span class="tech"><b>Louvain</b> · community detection</span>
+  <span class="tech"><b>MCP</b> · any model, one memory</span>
+  <span class="tech"><b>FastAPI</b> · Studio backend</span>
+ </div>
+</div></section>
+
+<footer><div class="w">TruthGuard · self-correcting RAG over messy documents, with a context memory that persists<br>
+ <a href="/">Open Studio</a> · <a href="/architecture.html">Architecture</a></div></footer>
+</body></html>
