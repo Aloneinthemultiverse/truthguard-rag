@@ -6,6 +6,7 @@ import { BehaviorRadar } from '@/components/BehaviorRadar'
 import TextMorph from '@/components/TextMorph'
 import { MCP_CLIENTS } from '@/components/MCPTools'
 
+const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
 function Section({ children, className = '' }: any) {
@@ -305,7 +306,7 @@ export default function About() {
               live 3-plane context graph<br />
               <span className="text-[11.5px] text-white/15">start the graph server on :7787 to render</span>
             </div>
-            <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />
+            {IS_LOCAL && <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />}
             <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
               style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
               <span className="text-white/80 font-medium">The context graph, live.</span> Documents above,

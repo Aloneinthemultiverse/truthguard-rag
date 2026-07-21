@@ -6,6 +6,7 @@ import { ArchMap } from '@/components/ArchMap'
 import { MCPTools } from '@/components/MCPTools'
 
 const G = '#3ddc97'          // the only accent
+const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
 /* ─────────────── shared shells ─────────────── */
@@ -345,7 +346,7 @@ export default function Architecture() {
               <div className="absolute inset-0 grid place-items-center text-white/20 text-[13px] text-center px-8">
                 live graph — start the server on :7787
               </div>
-              <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />
+              {IS_LOCAL && <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />}
             </div>
           </BlurFade>
         </Section>
