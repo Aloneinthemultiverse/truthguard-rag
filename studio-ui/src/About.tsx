@@ -2,6 +2,7 @@ import { BlurFade } from '@/components/magicui/blur-fade'
 import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { BorderBeam } from '@/components/magicui/border-beam'
+import { BehaviorRadar } from '@/components/BehaviorRadar'
 
 const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
@@ -208,6 +209,10 @@ export default function About() {
             </BlurFade>
           ))}
         </div>
+
+        <BlurFade delay={0.1}>
+          <div className="mt-6"><BehaviorRadar /></div>
+        </BlurFade>
 
         <BlurFade delay={0.1}>
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 mt-6">
