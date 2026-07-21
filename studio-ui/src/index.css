@@ -6,3 +6,20 @@ html,body,#root{height:100%;margin:0}
 body{background:radial-gradient(1200px 600px at 72% -10%,#12203a 0%,#070b16 55%);
  color:#e6edf7;font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
 *::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-thumb{background:#28395c;border-radius:4px}
+
+.font-serif-display{font-family:'Instrument Serif',ui-serif,Georgia,serif;font-weight:400;letter-spacing:-0.01em}
+.shimmer{background:linear-gradient(110deg,rgba(255,255,255,.35) 20%,#fff 42%,rgba(255,255,255,.35) 62%);
+ background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+ animation:shimmer 4.5s linear infinite}
+@keyframes shimmer{0%{background-position:180% center}100%{background-position:-80% center}}
+.aurora{position:absolute;inset:-30%;pointer-events:none;filter:blur(70px);opacity:.30;
+ background:conic-gradient(from 180deg at 50% 50%,#39d2c0 0deg,#bc8cff 120deg,#ff8c66 240deg,#39d2c0 360deg);
+ animation:aurora 18s ease-in-out infinite}
+@keyframes aurora{
+ 0%{background-position:0% center;transform:rotate(-5deg) scale(.9)}
+ 25%{background-position:50% 100%;transform:rotate(4deg) scale(1.05)}
+ 50%{background-position:100% center;transform:rotate(-3deg) scale(.95)}
+ 75%{background-position:50% 0%;transform:rotate(5deg) scale(1.08)}
+ 100%{background-position:0% center;transform:rotate(-5deg) scale(.9)}}
+@media (prefers-reduced-motion:reduce){.shimmer,.aurora{animation:none}
+ .shimmer{-webkit-text-fill-color:currentcolor;background:none}}

@@ -14,7 +14,7 @@ function Eyebrow({ children }: any) {
   return <div className="text-[11.5px] uppercase tracking-[0.18em] text-white/40 font-medium mb-4">{children}</div>
 }
 function H3({ children }: any) {
-  return <h3 className="text-[32px] leading-[1.2] tracking-[-0.02em] text-white font-semibold mb-6">{children}</h3>
+  return <h3 className="font-serif-display text-[40px] leading-[1.12] text-white mb-6">{children}</h3>
 }
 function P({ children, className = '' }: any) {
   return <p className={`text-[17px] leading-[1.75] text-white/55 mb-5 ${className}`}>{children}</p>
@@ -91,13 +91,14 @@ export default function About() {
 
       {/* hero */}
       <div className="relative overflow-hidden">
+        <div className="aurora" />
         <div className="relative mx-auto max-w-[880px] px-8 pt-28 pb-16">
           <BlurFade inView={false}>
             <div className="text-[11.5px] uppercase tracking-[0.18em] text-[#39d2c0] font-medium mb-6">Introducing TruthGuard</div>
           </BlurFade>
           <BlurFade inView={false} delay={0.08}>
-            <h1 className="text-[54px] leading-[1.08] tracking-[-0.035em] text-white font-semibold mb-7">
-              RAG that knows<br />when it doesn't know
+            <h1 className="font-serif-display text-[84px] leading-[0.98] text-white mb-7">
+              RAG that knows<br /><span className="shimmer">when it doesn't know</span>
             </h1>
           </BlurFade>
           <BlurFade inView={false} delay={0.16}>
