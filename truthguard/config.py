@@ -39,7 +39,19 @@ MISTRAL_OCR_API_KEY = os.getenv("MISTRAL_OCR_API_KEY", "")
 # page plus a one-off model load. Measured on a rasterized two-column paper:
 # tesseract 82.1% word recall, docTR 84.4% — and docTR kept the title first
 # where tesseract hoisted a margin stamp to the top.
-OCR_ENGINE = os.getenv("TG_OCR_ENGINE", "tesseract")
+#   auto       (default) quality-driven ladder — see ocr._tier1_ocr
+#   tesseract  fast, instant start, weakest on multi-column and poor scans
+#   doctr      detection-then-recognition; better reading order and poor scans
+#   paddleocr  angle-invariant; best on rotated or scattered text (maps, photos)
+OCR_ENGINE = os.getenv("TG_OCR_ENGINE", "auto")
+
+# PaddleOCR runs out-of-process: paddlepaddle has no wheel for Python 3.13+, so
+# it lives in its own virtualenv and is invoked as a subprocess.
+PADDLE_PYTHON = os.getenv(
+    "TG_PADDLE_PYTHON",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 ".venv-paddle", "Scripts", "python.exe"))
+PADDLE_TIMEOUT = int(os.getenv("TG_PADDLE_TIMEOUT", "180"))
 
 OCR_TIER2_BACKEND = os.getenv("TG_OCR_TIER2", "none")
 OCR_TIER2_URL = os.getenv("TG_OCR_TIER2_URL", "http://127.0.0.1:8000/v1")

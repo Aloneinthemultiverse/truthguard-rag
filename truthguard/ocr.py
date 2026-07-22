@@ -84,22 +84,18 @@ def _doctr_ocr(img):
     return None
 
 
-def _tier1_ocr(img):
-    """Returns (text, mean_conf 0-1, engine) or (None, 0.0, None)."""
-    # docTR when asked for explicitly — it costs a model load, so it is opt-in
-    # rather than something every ingest pays for.
-    if getattr(config, "OCR_ENGINE", "tesseract").lower() == "doctr":
-        out = _doctr_ocr(img)
-        if out:
-            return out
-        # fall through to tesseract rather than failing the page
-
-    # pytesseract first (lighter)
+def _tesseract_ocr(img):
+    """Tesseract: fast, no weights, no model load. Weakest on multi-column
+    layouts and rotated text, but most clean scans never need more.
+    Returns (text, mean_conf, engine) or None."""
     try:
-        import pytesseract, shutil, os
+        import os
+        import shutil
+
+        import pytesseract
         if not shutil.which("tesseract"):
-            for cand in (r"C:\Program Files\Tesseract-OCR\\tesseract.exe",
-                         r"C:\Program Files (x86)\Tesseract-OCR\\tesseract.exe"):
+            for cand in (r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                         r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"):
                 if os.path.exists(cand):
                     pytesseract.pytesseract.tesseract_cmd = cand
                     break
@@ -112,25 +108,107 @@ def _tier1_ocr(img):
         if words:
             return " ".join(words), (sum(confs) / len(confs)) / 100.0, "tesseract"
     except Exception:
-        pass
-    # PaddleOCR fallback
+        return None
+    return None
+
+
+def _paddle_ocr(img):
+    """PaddleOCR via subprocess. Angle-invariant detection, so it is the best of
+    the three on rotated or scattered text — maps, diagrams, photographed pages.
+
+    It runs out-of-process because paddlepaddle publishes no wheel for Python
+    3.13+; the engine lives in .venv-paddle and talks JSON over stdout.
+    """
+    import json
+    import os
+    import subprocess
+    import tempfile
+
+    py = getattr(config, "PADDLE_PYTHON", "")
+    if not py or not os.path.exists(py):
+        return None
+    tmp = None
     try:
-        from paddleocr import PaddleOCR
-        import numpy as np
-        global _PADDLE
-        if "_PADDLE" not in globals():
-            _PADDLE = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-        result = _PADDLE.ocr(np.array(img), cls=True)
-        lines, confs = [], []
-        for page in result or []:
-            for entry in page or []:
-                txt, conf = entry[1][0], float(entry[1][1])
-                lines.append(txt)
-                confs.append(conf)
-        if lines:
-            return "\n".join(lines), sum(confs) / len(confs), "paddleocr"
+        fd, tmp = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        img.save(tmp, format="PNG")
+        proc = subprocess.run(
+            [py, "-m", "truthguard.paddle_worker", tmp],
+            capture_output=True, text=True,
+            timeout=getattr(config, "PADDLE_TIMEOUT", 180),
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        # The worker prints progress to stderr; the JSON is the last stdout line.
+        line = next((l for l in reversed(proc.stdout.strip().splitlines())
+                     if l.strip().startswith("{")), None)
+        if not line:
+            return None
+        data = json.loads(line)
+        if data.get("error") or not data.get("text", "").strip():
+            return None
+        return data["text"], float(data.get("conf", 0.0)), "paddleocr"
     except Exception:
-        pass
+        return None
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def _quality_ok(text: str, conf: float) -> bool:
+    """Is this OCR result good enough to stop escalating?
+
+    Same thresholds the tier-1 to tier-2 escalation already uses, so a page is
+    judged consistently no matter which engine produced the text.
+    """
+    if not text or not text.strip():
+        return False
+    return conf >= config.OCR_TIER1_MIN_CONF and _garbage_ratio(text) <= config.OCR_GARBAGE_RATIO_MAX
+
+
+def _tier1_ocr(img):
+    """Read one page image. Returns (text, mean_conf 0-1, engine) or (None, 0.0, None).
+
+    Engines differ in what they are good at, so rather than picking one for the
+    whole corpus, "auto" escalates per page and stops as soon as the result is
+    good enough:
+
+        tesseract   fast, no weights            — most clean scans stop here
+        docTR       detection-then-recognition  — poor scans, multi-column order
+        paddleocr   angle-invariant detection   — rotated or scattered text
+
+    Escalation is driven by measured confidence and garbage ratio, not guesswork,
+    so a clean page never pays for a model it does not need. Setting
+    TG_OCR_ENGINE to a specific name pins that engine instead.
+    """
+    engine = getattr(config, "OCR_ENGINE", "auto").lower()
+    ENGINES = {"tesseract": _tesseract_ocr, "doctr": _doctr_ocr, "paddleocr": _paddle_ocr}
+
+    # Pinned to one engine: use it, but still fall back rather than lose the page.
+    if engine in ENGINES:
+        out = ENGINES[engine](img)
+        if out:
+            return out
+        order = [n for n in ("tesseract", "doctr", "paddleocr") if n != engine]
+    else:
+        order = ["tesseract", "doctr", "paddleocr"]
+
+    # auto: escalate only while the result is measurably bad, and keep the best
+    # attempt so a page never comes back empty just because nothing was perfect.
+    best = (None, 0.0, None)
+    for name in order:
+        out = ENGINES[name](img)
+        if not out:
+            continue
+        text, conf, eng = out
+        if _quality_ok(text, conf):
+            return out
+        if conf > best[1]:
+            best = out
+    if best[0]:
+        return best
     return None, 0.0, None
 
 

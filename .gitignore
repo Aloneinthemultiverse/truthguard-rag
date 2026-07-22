@@ -14,3 +14,4 @@ graph3d_data.json
 studio-ui/public/demo.mp4
 corpus/*.pptx
 corpus/layout-parser-paper-fast.pdf
+.venv-paddle/
