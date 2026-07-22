@@ -23,7 +23,8 @@ fpdf2>=2.7.0          # corpus generator only
 pillow>=10.0.0
 pytesseract>=0.3.10   # + Tesseract binary: winget install UB-Mannheim.TesseractOCR
 # paddleocr            # optional Tier-1 alternative
-# markitdown           # optional universal converter for docx/pptx
+unstructured>=0.18.0    # docx/pptx/xlsx/html/epub/odt structural parsing
+# markitdown           # optional fallback converter for docx/pptx
 
 # retrieval
 sentence-transformers>=2.2.0

@@ -20,7 +20,54 @@ from . import ocr
 from . import chunker
 
 
+# Office and web formats parsed by Unstructured-IO. PDF deliberately stays on
+# the existing pdfplumber + OCR-ladder path, which already handles scans and
+# reports per-page confidence — unstructured's PDF strategies would either lose
+# that provenance or pull in heavy layout models.
+_UNSTRUCTURED_EXT = {
+    "docx": "docx", "doc": "docx", "pptx": "pptx", "xlsx": "xlsx",
+    "html": "html", "htm": "html", "epub": "epub", "odt": "odt",
+}
+
+
+def _read_unstructured(path: str, ext: str) -> str:
+    """Parse with Unstructured-IO, keeping its element types as Markdown
+    structure. Titles become headings and tables keep their HTML, so the
+    chunker sees document structure instead of one flat blob of text."""
+    mod = _UNSTRUCTURED_EXT[ext]
+    import importlib
+    partition = getattr(
+        importlib.import_module(f"unstructured.partition.{mod}"), f"partition_{mod}")
+    out = []
+    for el in partition(filename=path):
+        kind, text = type(el).__name__, str(el).strip()
+        if not text:
+            continue
+        if kind == "Title":
+            out.append(f"\n## {text}\n")
+        elif kind == "ListItem":
+            out.append(f"- {text}")
+        elif kind == "Table":
+            # keep the HTML when unstructured produced it; it survives chunking
+            # far better than a table flattened into prose
+            html = getattr(getattr(el, "metadata", None), "text_as_html", None)
+            out.append(html or text)
+        else:
+            out.append(text)
+    return "\n".join(out).strip() or None
+
+
 def _read_docx(path: str) -> str:
+    """Unstructured-IO first, then markitdown, then python-docx.
+
+    Each fallback loses structure, so they are ordered best-first rather than
+    lightest-first; a missing optional dependency should degrade the output,
+    not the ingest.
+    """
+    try:
+        return _read_unstructured(path, "docx")
+    except Exception:
+        pass
     try:
         from markitdown import MarkItDown
         return MarkItDown().convert(path).text_content
@@ -59,10 +106,12 @@ def ingest_corpus(corpus_dir: str = None, storage_dir: str = None):
                     pages = [{"page": 1, "text": f.read(), "extraction": "native",
                               "ocr_conf": None, "ocr_engine": None,
                               "escalated_because": None, "line_fonts": None}]
-            elif ext == "docx":
-                text = _read_docx(path)
-                if text is None:
-                    report["skipped"].append({"file": fname, "reason": "no docx reader"})
+            elif ext in _UNSTRUCTURED_EXT:
+                text = (_read_docx(path) if ext in ("docx", "doc")
+                        else _read_unstructured(path, ext))
+                if not text:
+                    report["skipped"].append(
+                        {"file": fname, "reason": f"no reader produced text for .{ext}"})
                     continue
                 pages = [{"page": 1, "text": text, "extraction": "native",
                           "ocr_conf": None, "ocr_engine": None,
