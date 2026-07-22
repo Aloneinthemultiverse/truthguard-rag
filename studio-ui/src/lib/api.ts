@@ -48,6 +48,13 @@ export function apiFetch(path: string, init: RequestInit = {}) {
  * iframe cannot send headers.
  */
 export function graphUrl(view = 'FULL_3plane_clean.html'): string {
-  if (!API) return ''
-  return `${API}/graph/${view}${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ''}`
+  // With a backend, serve the live graph so it grows as the session does.
+  if (API) return `${API}/graph/${view}${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ''}`
+  // Without one, fall back to the snapshot shipped with the site. The graph is
+  // the most useful thing to show and it is only a JSON file plus a viewer —
+  // there is no reason it should require a running server to look at.
+  return `/${view}`
 }
+
+/** The graph renders from a static snapshot even with no backend attached. */
+export const HAS_GRAPH = true

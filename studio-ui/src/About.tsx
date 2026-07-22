@@ -5,7 +5,7 @@ import { BorderBeam } from '@/components/magicui/border-beam'
 import { BehaviorRadar } from '@/components/BehaviorRadar'
 import TextMorph from '@/components/TextMorph'
 import { MCP_CLIENTS } from '@/components/MCPTools'
-import { graphUrl, HAS_BACKEND } from '@/lib/api'
+import { graphUrl, HAS_GRAPH } from '@/lib/api'
 
 /**
  * Studio needs a backend, which is this laptop behind a Cloudflare tunnel.
@@ -342,7 +342,7 @@ export default function About() {
               live 3-plane context graph<br />
               <span className="text-[11.5px] text-white/15">connect a backend to render it live</span>
             </div>
-            {HAS_BACKEND && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
+            {HAS_GRAPH && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
             <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
               style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
               <span className="text-white/80 font-medium">The context graph, live.</span> Documents above,

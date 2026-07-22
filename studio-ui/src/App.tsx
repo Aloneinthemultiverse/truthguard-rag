@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { AnimatedShinyText } from '@/components/magicui/animated-shiny-text'
-import { apiFetch, graphUrl, HAS_BACKEND, API } from '@/lib/api'
+import { apiFetch, graphUrl, HAS_GRAPH, API } from '@/lib/api'
 
 const G = '#3ddc97'
 
@@ -343,7 +343,7 @@ export default function App() {
             {stats.nodes.toLocaleString()} nodes · live
           </span>
         </div>
-        {HAS_BACKEND
+        {HAS_GRAPH
           ? <iframe src={graphUrl()} className="flex-1 w-full border-0 bg-black" title="3-plane context graph" />
           : <div className="flex-1 grid place-items-center text-white/25 text-[13px] text-center px-8">
               No backend connected.<br />

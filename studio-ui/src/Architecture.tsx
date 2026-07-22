@@ -4,7 +4,7 @@ import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { ComponentExplorer, COMPONENTS } from '@/components/ComponentExplorer'
 import { ArchMap } from '@/components/ArchMap'
 import { MCPTools } from '@/components/MCPTools'
-import { graphUrl, HAS_BACKEND } from '@/lib/api'
+import { graphUrl, HAS_GRAPH } from '@/lib/api'
 
 const G = '#3ddc97'          // the only accent
 
@@ -403,7 +403,7 @@ export default function Architecture() {
               <div className="absolute inset-0 grid place-items-center text-white/20 text-[13px] text-center px-8">
                 live graph — connect a backend to render it
               </div>
-              {HAS_BACKEND && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
+              {HAS_GRAPH && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
             </div>
           </BlurFade>
         </Section>
