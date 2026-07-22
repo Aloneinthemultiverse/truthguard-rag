@@ -28,6 +28,16 @@ OCR_GARBAGE_RATIO_MAX = 0.20    # above -> escalate
 MAX_TIER2_PAGES = int(os.getenv("TG_MAX_TIER2_PAGES", "20"))
 MISTRAL_OCR_API_KEY = os.getenv("MISTRAL_OCR_API_KEY", "")
 
+# Tier-2 escalation backend: none | dots | ollama | mistral.
+# Default "none" keeps the pipeline free and dependency-light — Tesseract alone
+# handles ordinary scans. "dots" targets a self-hosted dots.ocr behind vLLM,
+# which needs a CUDA GPU with ~9-16 GB VRAM on the serving host.
+OCR_TIER2_BACKEND = os.getenv("TG_OCR_TIER2", "none")
+OCR_TIER2_URL = os.getenv("TG_OCR_TIER2_URL", "http://127.0.0.1:8000/v1")
+OCR_TIER2_MODEL = os.getenv("TG_OCR_TIER2_MODEL", "rednote-hilab/dots.ocr")
+OCR_TIER2_KEY = os.getenv("TG_OCR_TIER2_KEY", "")
+OCR_TIER2_TIMEOUT = int(os.getenv("TG_OCR_TIER2_TIMEOUT", "120"))
+
 # Retrieval
 TOP_K_FUSED = 50                # into rerank
 TOP_K_FINAL = 10                # into assessment

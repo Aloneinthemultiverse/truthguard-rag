@@ -114,7 +114,34 @@ LLM_MODEL=deepseek-ai/deepseek-v4-pro
 # LLM_MODEL=qwen2.5:3b-instruct
 # LLM_API_KEY=ollama
 
-MISTRAL_OCR_API_KEY=      # optional, tier-2 OCR escalation
+# Tier-2 OCR escalation. Default "none" — Tesseract alone handles ordinary
+# scans, with no key, no GPU and no cost. Escalation is opt-in:
+#   TG_OCR_TIER2=dots     self-hosted dots.ocr behind vLLM (needs CUDA, ~9-16GB VRAM)
+#   TG_OCR_TIER2=ollama   a local vision model
+#   TG_OCR_TIER2=mistral  the paid Mistral OCR API
+TG_OCR_TIER2=none
+# TG_OCR_TIER2_URL=http://127.0.0.1:8000/v1
+# TG_OCR_TIER2_MODEL=rednote-hilab/dots.ocr
+```
+
+### The OCR ladder
+
+| Tier | Engine | Cost | Hardware |
+|---|---|---|---|
+| **1** | Tesseract (or PaddleOCR) | free | CPU |
+| **2** | dots.ocr · a local vision model · Mistral OCR | free if self-hosted | dots.ocr needs a **CUDA GPU with ~9–16 GB VRAM** on the serving host |
+
+Tier 2 fires only when tier 1 returns confidence below `0.85` or a garbage ratio
+above `20%`. If the tier-2 backend is unreachable, ingestion continues with the
+tier-1 result and the page keeps its real confidence — escalation being
+unavailable never fails an ingest.
+
+To serve dots.ocr on a GPU machine:
+
+```bash
+vllm serve rednote-hilab/dots.ocr --gpu-memory-utilization 0.9
+# then, on the TruthGuard host:
+TG_OCR_TIER2=dots TG_OCR_TIER2_URL=http://<gpu-host>:8000/v1 python -m truthguard.main ingest
 ```
 
 Build the corpus and ask:

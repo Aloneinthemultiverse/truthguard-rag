@@ -99,36 +99,100 @@ def _tier1_ocr(img):
     return None, 0.0, None
 
 
-# ── Tier 2: Mistral OCR API ──────────────────────────────────────────────────
+# ── Tier 2: pluggable escalation backend ─────────────────────────────────────
+# Tier 1 (Tesseract) handles most scans and needs no GPU or key. Tier 2 only
+# fires when tier 1 comes back unconfident or garbled. It used to be hardwired
+# to Mistral's paid API; it is now a choice, so the project has no premium
+# dependency and self-hosted models can be dropped in.
+#
+#   TG_OCR_TIER2 = none    (default) tier 1 only — no key, no GPU, no cost
+#                  dots    dots.ocr behind an OpenAI-compatible server (vLLM).
+#                          Needs CUDA and ~9-16 GB VRAM on whatever host serves
+#                          it, not on this machine. Point TG_OCR_TIER2_URL at it.
+#                  ollama  any local vision model (e.g. a gemma vision build).
+#                          No GPU strictly required, but slow on CPU.
+#                  mistral the original paid API, kept for compatibility.
 _tier2_pages_used = 0
 
+
+def _png_b64(img) -> str:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    import base64
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+_OCR_PROMPT = ("Transcribe every character of this document page to Markdown. "
+               "Preserve tables, headings and layout order. Output only the "
+               "transcription, no commentary.")
+
+
+def _openai_vision_ocr(img, base_url: str, model: str, api_key: str, engine: str):
+    """Shared path for any OpenAI-compatible /chat/completions vision endpoint.
+    Both a vLLM-served dots.ocr and a local Ollama vision model speak this."""
+    import requests
+    resp = requests.post(
+        f"{base_url.rstrip('/')}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key or 'none'}"},
+        json={"model": model, "max_tokens": 4096, "temperature": 0,
+              "messages": [{"role": "user", "content": [
+                  {"type": "text", "text": _OCR_PROMPT},
+                  {"type": "image_url",
+                   "image_url": {"url": f"data:image/png;base64,{_png_b64(img)}"}}]}]},
+        timeout=config.OCR_TIER2_TIMEOUT,
+    )
+    resp.raise_for_status()
+    text = resp.json()["choices"][0]["message"]["content"]
+    # A VLM reports no confidence, so score it below a clean native extraction
+    # but above a garbled tier-1 result — it is a judgement, not a measurement.
+    return (text, 0.90, engine) if text.strip() else None
+
+
+def _mistral_ocr(img):
+    import requests
+    resp = requests.post(
+        "https://api.mistral.ai/v1/ocr",
+        headers={"Authorization": f"Bearer {config.MISTRAL_OCR_API_KEY}"},
+        json={"model": "mistral-ocr-latest",
+              "document": {"type": "image_url",
+                           "image_url": f"data:image/png;base64,{_png_b64(img)}"}},
+        timeout=config.OCR_TIER2_TIMEOUT,
+    )
+    resp.raise_for_status()
+    text = "\n".join(p.get("markdown", "") for p in resp.json().get("pages", []))
+    return (text, 0.95, "mistral-ocr") if text.strip() else None
+
+
 def _tier2_ocr(img):
-    """Mistral OCR API on one page image. Returns (markdown_text, conf, engine) or None."""
+    """Escalate one page image. Returns (markdown_text, conf, engine) or None."""
     global _tier2_pages_used
-    if not config.MISTRAL_OCR_API_KEY or _tier2_pages_used >= config.MAX_TIER2_PAGES:
+    backend = (config.OCR_TIER2_BACKEND or "none").lower()
+    if backend == "none" or _tier2_pages_used >= config.MAX_TIER2_PAGES:
         return None
     try:
-        import base64, requests
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        b64 = base64.b64encode(buf.getvalue()).decode()
-        resp = requests.post(
-            "https://api.mistral.ai/v1/ocr",
-            headers={"Authorization": f"Bearer {config.MISTRAL_OCR_API_KEY}"},
-            json={"model": "mistral-ocr-latest",
-                  "document": {"type": "image_url",
-                               "image_url": f"data:image/png;base64,{b64}"}},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        pages = resp.json().get("pages", [])
-        text = "\n".join(p.get("markdown", "") for p in pages)
-        if text.strip():
-            _tier2_pages_used += 1
-            return text, 0.95, "mistral-ocr"
-    except Exception:
+        if backend == "dots":
+            out = _openai_vision_ocr(img, config.OCR_TIER2_URL,
+                                     config.OCR_TIER2_MODEL,
+                                     config.OCR_TIER2_KEY, "dots.ocr")
+        elif backend == "ollama":
+            out = _openai_vision_ocr(img, config.OCR_TIER2_URL,
+                                     config.OCR_TIER2_MODEL, "ollama", "ollama-vision")
+        elif backend == "mistral":
+            if not config.MISTRAL_OCR_API_KEY:
+                return None
+            out = _mistral_ocr(img)
+        else:
+            return None
+    except Exception as e:
+        # Never fail ingestion because escalation was unavailable — tier 1's
+        # result still stands, and the page is marked with its real confidence.
+        import sys
+        print(f"  [ocr] tier-2 ({backend}) unavailable: {type(e).__name__}: {e}",
+              file=sys.stderr)
         return None
-    return None
+    if out:
+        _tier2_pages_used += 1
+    return out
 
 
 # ── the ladder ───────────────────────────────────────────────────────────────
