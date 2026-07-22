@@ -1,0 +1,18 @@
+# Never let credentials into the image — they would be readable by anyone who
+# pulls it, and a public Space image is pullable.
+.env
+.env.*
+!.env.example
+
+# Build noise and things the API does not need at runtime.
+.git
+studio-ui/node_modules
+studio-ui/dist
+__pycache__
+**/__pycache__
+*.pyc
+.venv
+venv
+eval/locomo_data
+eval/longmemeval_data
+*.log

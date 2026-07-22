@@ -35,7 +35,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # chat transcripts.
 API_TOKEN = os.getenv("TG_API_TOKEN", "").strip()
 EXPOSED = bool(API_TOKEN)
-ALLOW_WRITE = os.getenv("TG_ALLOW_WRITE", "").strip() == "1"
+# TG_READONLY is for a public deployment with no token at all: anyone may read
+# and ask, nobody may write or touch credentials. Without it, "no token" means
+# local mode, where writes are on — which would be wrong on a public host.
+READONLY = os.getenv("TG_READONLY", "").strip() == "1"
+ALLOW_WRITE = os.getenv("TG_ALLOW_WRITE", "").strip() == "1" and not READONLY
 
 # Routes that mutate state or touch credentials. Blocked when exposed unless
 # TG_ALLOW_WRITE=1 is set deliberately.
@@ -52,6 +56,13 @@ app.add_middleware(
 
 @app.middleware("http")
 async def _guard(request: Request, call_next):
+    # Read-only mode applies with or without a token, so a public deployment
+    # cannot be written to even though visitors need no credentials.
+    if READONLY and request.method != "GET" \
+            and request.url.path.startswith(_WRITE_PREFIXES):
+        return JSONResponse(
+            {"error": "this deployment is read-only",
+             "hint": "run your own instance to ingest or change providers"}, status_code=403)
     if not EXPOSED:
         return await call_next(request)
     # CORS preflight carries no credentials by design — let the CORS middleware
