@@ -22,7 +22,9 @@ pypdfium2>=4.0.0
 fpdf2>=2.7.0          # corpus generator only
 pillow>=10.0.0
 pytesseract>=0.3.10   # + Tesseract binary: winget install UB-Mannheim.TesseractOCR
-# paddleocr            # optional Tier-1 alternative
+# python-doctr         # optional Tier-1 engine: better on poor scans and
+                       # multi-column reading order (TG_OCR_ENGINE=doctr)
+# paddleocr            # unavailable: no paddlepaddle wheel for Python 3.13+
 unstructured>=0.18.0    # docx/pptx/xlsx/html/epub/odt structural parsing
 # markitdown           # optional fallback converter for docx/pptx
 

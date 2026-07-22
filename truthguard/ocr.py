@@ -57,8 +57,43 @@ def _render_page_image(pdf_path: str, page_index: int):
 
 
 # ── Tier 1: local OCR ────────────────────────────────────────────────────────
+def _doctr_ocr(img):
+    """docTR: deep-learning detection + recognition. Stronger than Tesseract on
+    poor scans and on multi-column reading order, because it detects text
+    regions before recognizing them rather than scanning the page top-down.
+    Returns (text, mean_conf, engine) or None."""
+    try:
+        import numpy as np
+        from doctr.models import ocr_predictor
+        global _DOCTR
+        if "_DOCTR" not in globals():
+            _DOCTR = ocr_predictor(pretrained=True)     # weights cached after first use
+        res = _DOCTR([np.array(img.convert("RGB"))])
+        lines, confs = [], []
+        for page in res.pages:
+            for block in page.blocks:
+                for line in block.lines:
+                    words = [w.value for w in line.words]
+                    if words:
+                        lines.append(" ".join(words))
+                        confs.extend(float(w.confidence) for w in line.words)
+        if lines:
+            return "\n".join(lines), (sum(confs) / len(confs) if confs else 0.0), "doctr"
+    except Exception:
+        return None
+    return None
+
+
 def _tier1_ocr(img):
     """Returns (text, mean_conf 0-1, engine) or (None, 0.0, None)."""
+    # docTR when asked for explicitly — it costs a model load, so it is opt-in
+    # rather than something every ingest pays for.
+    if getattr(config, "OCR_ENGINE", "tesseract").lower() == "doctr":
+        out = _doctr_ocr(img)
+        if out:
+            return out
+        # fall through to tesseract rather than failing the page
+
     # pytesseract first (lighter)
     try:
         import pytesseract, shutil, os

@@ -32,6 +32,15 @@ MISTRAL_OCR_API_KEY = os.getenv("MISTRAL_OCR_API_KEY", "")
 # Default "none" keeps the pipeline free and dependency-light — Tesseract alone
 # handles ordinary scans. "dots" targets a self-hosted dots.ocr behind vLLM,
 # which needs a CUDA GPU with ~9-16 GB VRAM on the serving host.
+# Tier-1 engine: tesseract | doctr.
+# Tesseract is the default because it starts instantly and needs no weights.
+# docTR is a deep-learning detector+recognizer: better on poor scans and much
+# better at reading order on multi-column pages, at roughly 1.6x the time per
+# page plus a one-off model load. Measured on a rasterized two-column paper:
+# tesseract 82.1% word recall, docTR 84.4% — and docTR kept the title first
+# where tesseract hoisted a margin stamp to the top.
+OCR_ENGINE = os.getenv("TG_OCR_ENGINE", "tesseract")
+
 OCR_TIER2_BACKEND = os.getenv("TG_OCR_TIER2", "none")
 OCR_TIER2_URL = os.getenv("TG_OCR_TIER2_URL", "http://127.0.0.1:8000/v1")
 OCR_TIER2_MODEL = os.getenv("TG_OCR_TIER2_MODEL", "rednote-hilab/dots.ocr")

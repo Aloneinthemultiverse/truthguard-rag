@@ -54,7 +54,7 @@ Ingest  ──▶  Retrieve  ──▶  ASSESS  ──▶  Respond
 
 | Stage | What it does |
 |---|---|
-| **01 Ingest** | Mixed PDFs, scans and code-in-PDF normalized to Markdown. Pages without a text layer escalate through an OCR ladder (Tesseract → Mistral OCR). |
+| **01 Ingest** | Mixed PDFs, scans and code-in-PDF normalized to Markdown. Pages without a text layer go through an OCR ladder (Tesseract or docTR, with optional escalation). |
 | **02 Retrieve** | Three signals scored in parallel — dense vectors, BM25 keywords, exact entity matches — fused by reciprocal rank and reranked by a cross-encoder. |
 | **03 Assess** | Sufficiency, fact extraction with validity windows, contradiction detection, then an answerability verdict. |
 | **04 Respond** | Answer with citations and a confidence band — or refuse, clarify, or present both sides. |
@@ -120,6 +120,9 @@ LLM_MODEL=deepseek-ai/deepseek-v4-pro
 #   TG_OCR_TIER2=ollama   a local vision model
 #   TG_OCR_TIER2=mistral  the paid Mistral OCR API
 TG_OCR_TIER2=none
+# Tier-1 engine: tesseract (default, instant) or doctr (better on poor scans
+# and multi-column reading order; ~129MB weights, one-off model load)
+TG_OCR_ENGINE=tesseract
 # TG_OCR_TIER2_URL=http://127.0.0.1:8000/v1
 # TG_OCR_TIER2_MODEL=rednote-hilab/dots.ocr
 ```
@@ -128,7 +131,7 @@ TG_OCR_TIER2=none
 
 | Tier | Engine | Cost | Hardware |
 |---|---|---|---|
-| **1** | Tesseract (or PaddleOCR) | free | CPU |
+| **1** | Tesseract *(default)* or **docTR** | free | CPU |
 | **2** | dots.ocr · a local vision model · Mistral OCR | free if self-hosted | dots.ocr needs a **CUDA GPU with ~9–16 GB VRAM** on the serving host |
 
 Tier 2 fires only when tier 1 returns confidence below `0.85` or a garbage ratio
