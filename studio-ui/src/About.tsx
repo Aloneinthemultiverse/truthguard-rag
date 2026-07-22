@@ -5,7 +5,7 @@ import { BorderBeam } from '@/components/magicui/border-beam'
 import { BehaviorRadar } from '@/components/BehaviorRadar'
 import TextMorph from '@/components/TextMorph'
 import { MCP_CLIENTS } from '@/components/MCPTools'
-import { graphUrl, HAS_GRAPH } from '@/lib/api'
+import { staticGraphUrl, HAS_GRAPH } from '@/lib/api'
 
 /**
  * Studio needs a backend, which is this laptop behind a Cloudflare tunnel.
@@ -61,16 +61,24 @@ const PLANES = [
   ['x  SPINE', 'Conversation', 'Turns stored as decision memory with confidence, decay, and supersession. Each session its own thread.', '#bc8cff'],
   ['y−  CODE', 'Codebase', 'Call and import structure alongside real function bodies, across twenty-plus languages.', '#ff8c66'],
 ]
-const STACK = ['DecisionGraph', 'turbovec', 'BM25', 'Entity matching', 'GitNexus', 'Tesseract + Mistral OCR', 'Louvain', 'MCP']
+const STACK = ['DecisionGraph', 'turbovec', 'BM25', 'Entity matching', 'GitNexus', 'Unstructured-IO', 'Tesseract OCR', 'Louvain', 'MCP']
 
-function Shot({ label, caption }: { label: string; caption: string }) {
+/** A screenshot slot, or a video when `src` is given. */
+function Shot({ label, caption, src }: { label?: string; caption: string; src?: string }) {
   return (
     <BlurFade delay={0.1}>
       <figure className="my-10 rounded-2xl border border-white/[0.08] overflow-hidden bg-white/[0.02]">
-        <div className="h-[300px] grid place-items-center text-white/20 text-[13px] tracking-wide"
-          style={{ background: 'repeating-linear-gradient(45deg,#0a0d14,#0a0d14 12px,#0c0f18 12px,#0c0f18 24px)' }}>
-          {label}
-        </div>
+        {src ? (
+          // preload="metadata" so a 67 MB file is not pulled on every page load —
+          // the browser fetches enough to show duration and starts streaming on play.
+          <video src={src} controls playsInline preload="metadata"
+            className="w-full block bg-black max-h-[560px]" />
+        ) : (
+          <div className="h-[300px] grid place-items-center text-white/20 text-[13px] tracking-wide"
+            style={{ background: 'repeating-linear-gradient(45deg,#0a0d14,#0a0d14 12px,#0c0f18 12px,#0c0f18 24px)' }}>
+            {label}
+          </div>
+        )}
         <figcaption className="px-5 py-3.5 text-[13px] text-white/45 border-t border-white/[0.06]">{caption}</figcaption>
       </figure>
     </BlurFade>
@@ -199,8 +207,8 @@ export default function About() {
           ))}
         </div>
 
-        <Shot label="[ screenshot: dual-answer in Studio ]"
-          caption="A contradiction, surfaced. Two policy editions disagree on the travel limit — the system shows both with their sources instead of picking one." />
+        <Shot src="/demo.mp4"
+          caption="The pipeline running end to end — retrieval, the assessment gate, and the response it decides on, with the reasoning trace visible throughout." />
       </Section>
 
       {/* results */}
@@ -304,8 +312,6 @@ export default function About() {
           </table>
         </BlurFade>
 
-        <Shot label="[ screenshot: refusal with gap analysis ]"
-          caption="A refusal, with reasons. When the corpus cannot support an answer, the system declines and reports what it looked for." />
       </Section>
 
       {/* memory */}
@@ -342,7 +348,7 @@ export default function About() {
               live 3-plane context graph<br />
               <span className="text-[11.5px] text-white/15">connect a backend to render it live</span>
             </div>
-            {HAS_GRAPH && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
+            {HAS_GRAPH && <iframe src={staticGraphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
             <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
               style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
               <span className="text-white/80 font-medium">The context graph, live.</span> Documents above,
@@ -368,10 +374,11 @@ export default function About() {
           signal rather than volume.
         </P></BlurFade>
 
-        <div className="grid sm:grid-cols-3 gap-3 mt-8">
-          {[['Documents', 'PDFs, DOCX, Markdown, scanned pages with no text layer — read through a two-tier OCR ladder with per-word confidence.'],
-            ['Code repositories', 'Whole GitHub repos: call and import structure plus real function bodies extracted across 22+ languages.'],
-            ['Conversations', 'Any transcript — a Claude session file or plain user:/assistant: text — imported as its own thread and cross-linked.']].map(([t, d], i) => (
+        <div className="grid sm:grid-cols-2 gap-3 mt-8">
+          {[['Documents', 'PDF · DOCX · PPTX · XLSX · HTML · ODT · EPUB · Markdown · TXT — parsed with layout intact, so headings and tables survive as structure.'],
+            ['Scans and images', 'PNG · JPG · TIFF · scanned PDFs with no text layer — recovered through the OCR ladder, with per-page confidence recorded on every chunk.'],
+            ['Code repositories', 'Whole GitHub repos, however large: call and import structure plus real function bodies extracted by AST across 22+ languages.'],
+            ['Conversations', 'Any transcript — a Claude session file or plain user:/assistant: text — imported as its own thread and cross-linked to the code and docs it referenced.']].map(([t, d], i) => (
             <BlurFade key={t} delay={0.06 + i * 0.07}>
               <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-full">
                 <div className="text-[15.5px] text-white font-medium mb-2">{t}</div>
@@ -396,6 +403,133 @@ export default function About() {
             </div>
           </div>
         </BlurFade>
+      </Section>
+
+      {/* unstructured documents */}
+      <Section>
+        <BlurFade><Eyebrow>Unstructured documents</Eyebrow><H3>Formats that fight back</H3></BlurFade>
+        <BlurFade delay={0.06}><P>
+          Real corpora are not clean. They are native PDFs beside scanned pages with no text layer, Word files
+          with tables, slide decks, and code pasted into a document. Each is normalized to Markdown with its
+          structure intact — headings stay headings, tables stay tables — and every chunk carries where it came
+          from and how it was read.
+        </P></BlurFade>
+
+        <div className="grid sm:grid-cols-2 gap-3 mt-8">
+          {[['Unstructured-IO', 'DOCX · PPTX · XLSX · HTML · EPUB · ODT', 'Layout-aware parsing. Titles, list items and tables survive as structure rather than collapsing into one blob of text.'],
+            ['pdfplumber + OCR ladder', 'PDF · scanned pages · images', 'Native text where a text layer exists; Tesseract where it does not, with per-page confidence recorded on every chunk.']].map(([t, f, d], i) => (
+            <BlurFade key={t} delay={0.06 + i * 0.07}>
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-full">
+                <div className="text-[15.5px] text-white font-medium">{t}</div>
+                <div className="font-mono text-[11.5px] text-[#39d2c0] mt-1 mb-2.5">{f}</div>
+                <div className="text-[13px] leading-[1.6] text-white/45">{d}</div>
+              </div>
+            </BlurFade>
+          ))}
+        </div>
+
+        <BlurFade delay={0.12}>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 mt-6">
+            <div className="text-[14.5px] text-white font-medium">OCR measured against ground truth</div>
+            <div className="text-[12.5px] text-white/35 mt-1 mb-5">
+              A real two-column research paper, rasterized to remove its text layer, then read back and scored
+              against the original text.
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[['82.1', '%', 'word recall'], ['0.93', '', 'reported confidence'], ['4.6', 's', 'per page']].map(([v, u, l]) => (
+                <div key={l} className="rounded-lg border border-white/[0.08] p-4">
+                  <div className="text-[28px] font-semibold tracking-tight text-[#39d2c0] leading-none">{v}<span className="text-[16px]">{u}</span></div>
+                  <div className="text-[12px] text-white/40 mt-1.5">{l}</div>
+                </div>
+              ))}
+            </div>
+            <div className="text-[12px] text-white/30 mt-5 pt-4 border-t border-white/[0.06] leading-relaxed">
+              Tesseract reports 0.93 confidence while actually recovering 82.1% of unique words — superscripts and
+              reading order are where it slips. That gap is the reason retrieval down-weights OCR chunks and the
+              gate treats a lone OCR outlier as suspect rather than as evidence.
+            </div>
+          </div>
+        </BlurFade>
+      </Section>
+
+      {/* code intelligence — impact radius */}
+      <Section>
+        <BlurFade><Eyebrow>Code intelligence</Eyebrow><H3>"If I change this function, what breaks?"</H3></BlurFade>
+        <BlurFade delay={0.06}><P>
+          Because the codebase is a plane of the same graph, the system can answer structural questions with no
+          model involved at all — pure traversal. Ask it for the blast radius of an edit and it walks callers,
+          callees, the files they live in, and <span className="text-white/90">the past conversations where that
+          code was decided</span>.
+        </P></BlurFade>
+
+        <BlurFade delay={0.1}>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden mt-8">
+            <div className="px-5 py-3 border-b border-white/[0.07] font-mono text-[12.5px] text-white/45">
+              graph_query edit_plan <span className="text-[#39d2c0]">retrieve</span>
+            </div>
+            <div className="p-5">
+              <div className="flex items-center gap-4 flex-wrap mb-5">
+                <div>
+                  <div className="text-[34px] font-semibold tracking-tight text-[#39d2c0] leading-none">
+                    <NumberTicker value={22} />
+                  </div>
+                  <div className="text-[12px] text-white/35 mt-1">nodes impacted</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg border border-[#e3b341]/30 bg-[#e3b341]/[0.07]
+                  text-[#e3b341] text-[12.5px] font-mono">risk: MEDIUM</div>
+                <div className="ml-auto text-[12px] text-white/30 font-mono">zero LLM calls</div>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-2.5 mb-5">
+                {[['19', 'code symbols', '#39d2c0'], ['2', 'files', '#ff8c66'], ['1', 'chat decision', '#bc8cff']].map(([n, l, c]) => (
+                  <div key={l} className="rounded-lg border p-3.5" style={{ borderColor: `${c}35`, background: `${c}0d` }}>
+                    <div className="text-[20px] font-semibold" style={{ color: c }}>{n}</div>
+                    <div className="text-[12px] text-white/45 mt-0.5">{l}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4 text-[13px]">
+                <div>
+                  <div className="text-white/70 mb-2">Must not break — callers</div>
+                  <div className="font-mono text-[12px] text-white/45 leading-[1.9]">ask</div>
+                  <div className="text-[11.5px] text-white/25 mt-1">keep the signature and return contract, or update these</div>
+                </div>
+                <div>
+                  <div className="text-white/70 mb-2">Depends on — callees</div>
+                  <div className="font-mono text-[12px] text-white/45 leading-[1.9]">
+                    rrf_fuse · _interpretations · _rerank · _provenance_weight · _doc_scope_filter
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-white/[0.07] text-[12.5px] text-white/40 leading-relaxed">
+                It also surfaces <span className="text-[#bc8cff]">one past conversation</span> where this function's
+                behaviour was decided. A call graph alone cannot do that — it needs the chat plane wired to the
+                code plane, which is the point of keeping all three in one graph.
+              </div>
+            </div>
+          </div>
+        </BlurFade>
+
+        <div className="grid sm:grid-cols-2 gap-3 mt-6">
+          {[['impact', 'Blast radius of touching a symbol, split by plane, with a risk band.'],
+            ['edit_plan', 'What to preserve: caller contracts, callee behaviour, docs and past decisions to re-read.'],
+            ['path', 'Shortest route between any two nodes across planes — every edge tagged EXTRACTED or INFERRED.'],
+            ['report', 'God nodes, orphans and surprises — the structural smells in a codebase.']].map(([t, d], i) => (
+            <BlurFade key={t} delay={0.06 + i * 0.06}>
+              <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-full">
+                <div className="font-mono text-[13.5px] text-[#39d2c0] mb-1.5">{t}</div>
+                <div className="text-[13px] leading-[1.6] text-white/45">{d}</div>
+              </div>
+            </BlurFade>
+          ))}
+        </div>
+
+        <BlurFade delay={0.14}><P className="mt-7">
+          Function bodies are extracted by AST across twenty-plus languages, so this works on a real repository,
+          not just a toy one. Every answer here is a graph traversal — deterministic, instant, and free.
+        </P></BlurFade>
       </Section>
 
       {/* reproduction */}

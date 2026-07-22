@@ -158,6 +158,8 @@ export default function App() {
   // The graph is its own page rather than a side panel — at half width the
   // 3-plane layout is unreadable, and the chat column was cramped too.
   const [view, setView] = useState<'chat' | 'graph'>('chat')
+  const [dragging, setDragging] = useState(false)
+  const filePicker = useRef<HTMLInputElement>(null)
   const [greeted, setGreeted] = useState(true)
   const pending = useRef<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -202,15 +204,32 @@ export default function App() {
     }
   }
 
-  async function onDrop(e: React.DragEvent) {
-    e.preventDefault(); const f = e.dataTransfer.files[0]; if (!f) return
+  /** Shared by drag-drop and the file picker — ingest is identical either way. */
+  async function ingestFile(f: File | undefined) {
+    if (!f) return
     const fd = new FormData(); fd.append('file', f)
     setMsgs(m => [...m, { role: 'a', text: `ingesting ${f.name}…`, trace: [{ step: 'ingest' }] }])
     try {
-      const r = await (await apiFetch('/ingest/document', { method: 'POST', body: fd })).json()
-      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', kind: 'ingested',
-        text: `${r.file} — ${r.total_chunks} chunks (${r.engine})`, trace: [{ step: 'ingest' }] }; return c })
-    } catch {}
+      const res = await apiFetch('/ingest/document', { method: 'POST', body: fd })
+      const r = await res.json()
+      // Surface the failure instead of swallowing it — a silent no-op here used
+      // to look identical to a dead drop zone.
+      const ok = res.ok && r.total_chunks != null
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = ok
+        ? { role: 'a', kind: 'ingested',
+            text: `${r.file} — ${r.total_chunks} chunks (${r.engine})`, trace: [{ step: 'ingest' }] }
+        : { role: 'a', kind: 'error',
+            text: r.error || r.detail || `ingest failed (HTTP ${res.status})`, trace: [{ step: 'ingest_failed' }] }
+        return c })
+    } catch (err: any) {
+      setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', kind: 'error',
+        text: `ingest failed — ${err?.message || 'API unreachable'}`, trace: [{ step: 'ingest_failed' }] }; return c })
+    }
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragging(false)
+    await ingestFile(e.dataTransfer.files[0])
   }
 
   return (
@@ -313,10 +332,23 @@ export default function App() {
           </div>
 
           <div className="px-6">
-            <div onDragOver={e => e.preventDefault()} onDrop={onDrop}
-              className="border border-dashed border-white/[0.14] rounded-xl p-2.5 text-center text-[12.5px]
-                text-white/30 mb-3 transition hover:border-[#3ddc97] hover:text-[#3ddc97]">
-              drop a PDF · DOCX · MD to ingest — the graph grows live
+            {/* Clickable as well as droppable — it reads like a button, so it
+                has to behave like one. */}
+            <input ref={filePicker} type="file" className="hidden"
+              accept=".pdf,.docx,.doc,.pptx,.xlsx,.html,.htm,.odt,.epub,.md,.txt,.png,.jpg,.jpeg,.tiff,.webp"
+              onChange={e => { ingestFile(e.target.files?.[0]); e.target.value = '' }} />
+            <div
+              onClick={() => filePicker.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              className="border border-dashed rounded-xl p-2.5 text-center text-[12.5px] mb-3
+                cursor-pointer transition"
+              style={dragging
+                ? { borderColor: G, color: G, background: 'rgba(61,220,151,0.08)' }
+                : { borderColor: 'rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.3)' }}>
+              {dragging ? 'release to ingest'
+                : 'click or drop a file — PDF · DOCX · PPTX · XLSX · HTML · ODT · MD · images'}
             </div>
           </div>
           <div className="flex gap-2.5 px-6 pb-5">

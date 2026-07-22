@@ -56,5 +56,18 @@ export function graphUrl(view = 'FULL_3plane_clean.html'): string {
   return `/${view}`
 }
 
+/**
+ * Always the bundled snapshot, never the API.
+ *
+ * About and Architecture are public pages that must render for anyone. Routing
+ * them through `graphUrl()` meant that once a visitor had a tunnel URL cached in
+ * localStorage, those pages tried to reach a laptop that might be offline — and
+ * showed a Cloudflare error instead of the graph. Only Studio, which already
+ * requires a backend, should use the live one.
+ */
+export function staticGraphUrl(view = 'FULL_3plane_clean.html'): string {
+  return `/${view}`
+}
+
 /** The graph renders from a static snapshot even with no backend attached. */
 export const HAS_GRAPH = true
