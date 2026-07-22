@@ -1,0 +1,8 @@
+{
+ "slice_start": 0,
+ "recall_n": 25,
+ "recall@10": 0.92,
+ "qa_n": 0,
+ "qa_sum": 0,
+ "qa": null
+}

@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { NumberTicker } from '@/components/magicui/number-ticker'
 import { AnimatedShinyText } from '@/components/magicui/animated-shiny-text'
+import { apiFetch, graphUrl, HAS_BACKEND, API } from '@/lib/api'
 
 const G = '#3ddc97'
-const API = 'http://127.0.0.1:7788'
-const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
-const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+
 
 type Msg = { role: 'q' | 'a'; text?: string; kind?: string; trace?: { step: string }[]
   confidence?: number | null; band?: string; citations?: string[]; loading?: boolean }
@@ -27,17 +26,42 @@ function Settings({ onClose }: { onClose: () => void }) {
   const [cfg, setCfg] = useState<any>(null)
   const [f, setF] = useState<any>({})
   const [saved, setSaved] = useState('')
-  useEffect(() => { fetch(API + '/config').then(r => r.json()).then(setCfg).catch(() => {}) }, [])
+  useEffect(() => { apiFetch('/config').then(r => r.json()).then(setCfg).catch(() => {}) }, [])
   const save = async () => {
     setSaved('saving…')
     try {
-      const r = await (await fetch(API + '/config', { method: 'POST',
+      const r = await (await apiFetch('/config', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) })).json()
       setSaved(r.ok ? `saved — ${r.updated.join(', ')}` : r.error)
-      fetch(API + '/config').then(x => x.json()).then(setCfg)
+      apiFetch('/config').then(x => x.json()).then(setCfg)
       setF({})
     } catch { setSaved('failed — is the API running?') }
   }
+  // Known endpoints, so switching providers is one click instead of recalling a URL.
+  const PRESETS: [string, string, string][] = [
+    ['Ollama (local)', 'http://127.0.0.1:11434/v1', 'openai'],
+    ['NVIDIA NIM', 'https://integrate.api.nvidia.com/v1', 'openai'],
+    ['OpenAI', 'https://api.openai.com/v1', 'openai'],
+    ['Anthropic', 'https://api.anthropic.com', 'anthropic'],
+  ]
+  const [models, setModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+
+  // Ask the provider what it serves. Uses whatever is typed in the form so a new
+  // endpoint can be probed before its key is saved.
+  const loadModels = async () => {
+    setLoadingModels(true)
+    try {
+      const p = new URLSearchParams()
+      if (f.llm_base_url) p.set('base_url', f.llm_base_url)
+      if (f.llm_api_key) p.set('api_key', f.llm_api_key)
+      const r = await (await apiFetch(`/models?${p}`)).json()
+      setModels(r.models || [])
+      if (!r.models?.length) setSaved(r.error ? `no models: ${r.error}` : 'provider returned no models')
+    } catch { setSaved('could not reach the provider') }
+    setLoadingModels(false)
+  }
+
   const Field = ({ k, label, ph, cur }: any) => (
     <label className="block mb-4">
       <div className="flex items-baseline gap-2 mb-1.5">
@@ -72,9 +96,46 @@ function Settings({ onClose }: { onClose: () => void }) {
             </span>
           ))}
         </div>
-        <Field k="llm_api_key" label="LLM API key" ph="nvapi-… / sk-…" cur={cfg?.llm_api_key} />
-        <Field k="llm_base_url" label="LLM base URL" ph="https://integrate.api.nvidia.com/v1" cur={cfg?.llm_base_url} />
-        <Field k="llm_model" label="Model" ph="deepseek-ai/deepseek-v4-pro" cur={cfg?.llm_model} />
+        <div className="text-[12.5px] text-white/45 mb-2">Quick setup</div>
+        <div className="flex flex-wrap gap-2 mb-5">
+          {PRESETS.map(([name, url, prov]) => (
+            <button key={name} onClick={() => { setF({ ...f, llm_base_url: url, llm_provider: prov }); setModels([]) }}
+              className="text-[12px] px-3 py-1.5 rounded-lg border transition"
+              style={f.llm_base_url === url
+                ? { background: G, borderColor: G, color: '#000', fontWeight: 500 }
+                : { borderColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.55)' }}>{name}</button>
+          ))}
+        </div>
+
+        <Field k="llm_api_key" label="LLM API key" ph="nvapi-… / sk-… (any value for Ollama)" cur={cfg?.llm_api_key} />
+        <Field k="llm_base_url" label="LLM base URL" ph="http://127.0.0.1:11434/v1" cur={cfg?.llm_base_url} />
+
+        {/* model: list what the provider actually serves rather than making the
+            user type an exact id — a wrong id is a 404 with no clue why */}
+        <label className="block mb-4">
+          <div className="flex items-baseline gap-2 mb-1.5">
+            <span className="text-[13px] text-white/70">Model</span>
+            {cfg?.llm_model && <span className="font-mono text-[11px] text-white/25">current: {cfg.llm_model}</span>}
+            <button onClick={loadModels} disabled={loadingModels}
+              className="ml-auto text-[11.5px] px-2 py-0.5 rounded border border-white/[0.15] text-white/55 hover:text-white transition">
+              {loadingModels ? 'checking…' : models.length ? 'refresh' : 'fetch models'}
+            </button>
+          </div>
+          {models.length > 0 ? (
+            <select value={f.llm_model ?? ''} onChange={e => setF({ ...f, llm_model: e.target.value })}
+              className="w-full bg-black/50 border border-white/[0.12] rounded-lg px-3.5 py-2.5 text-[13px]
+                text-white outline-none focus:border-[#3ddc97] transition font-mono">
+              <option value="">— pick a model ({models.length} available) —</option>
+              {models.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          ) : (
+            <input type="text" placeholder="qwen2.5:3b-instruct" value={f.llm_model ?? ''}
+              onChange={e => setF({ ...f, llm_model: e.target.value })}
+              className="w-full bg-black/50 border border-white/[0.12] rounded-lg px-3.5 py-2.5 text-[13px]
+                text-white outline-none focus:border-[#3ddc97] transition font-mono" />
+          )}
+        </label>
+
         <Field k="llm_provider" label="Provider" ph="openai | anthropic" cur={cfg?.llm_provider} />
         <div className="h-px bg-white/[0.08] my-5" />
         <Field k="mistral_ocr_api_key" label="Mistral OCR key (optional)" ph="for tier-2 OCR escalation" cur={cfg?.mistral_ocr_api_key} />
@@ -94,6 +155,9 @@ export default function App() {
   const [stats, setStats] = useState({ nodes: 0, turns: 0 })
   const [ready, setReady] = useState<boolean | null>(null)
   const [showSet, setShowSet] = useState(false)
+  // The graph is its own page rather than a side panel — at half width the
+  // 3-plane layout is unreadable, and the chat column was cramped too.
+  const [view, setView] = useState<'chat' | 'graph'>('chat')
   const [greeted, setGreeted] = useState(true)
   const pending = useRef<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -101,8 +165,8 @@ export default function App() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const s = await (await fetch(API + '/stats')).json(); setStats({ nodes: s.nodes, turns: s.turns })
-        const c = await (await fetch(API + '/config')).json(); setReady(c.llm_ready)
+        const s = await (await apiFetch('/stats')).json(); setStats({ nodes: s.nodes, turns: s.turns })
+        const c = await (await apiFetch('/config')).json(); setReady(c.llm_ready)
       } catch { setReady(false) }
     }
     poll(); const id = setInterval(poll, 8000); return () => clearInterval(id)
@@ -117,8 +181,19 @@ export default function App() {
     try {
       const body: any = pending.current ? { question: pending.current, followup: text } : { question: text }
       pending.current = null
-      const r = await (await fetch(API + '/ask', { method: 'POST',
+      // Kick off the job, then poll. An answer takes minutes, and one HTTP
+      // request held open that long dies with the tunnel; short polls don't.
+      const { job_id } = await (await apiFetch('/ask_async', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json()
+      let r: any = null
+      for (let i = 0; i < 300 && !r; i++) {                 // ~10 min ceiling
+        await new Promise(res => setTimeout(res, 2000))
+        try {
+          const j = await (await apiFetch(`/ask_job/${job_id}`)).json()
+          if (j.status === 'done' || j.status === 'error') r = j.result
+        } catch { /* a dropped poll is fine — the next one retries */ }
+      }
+      if (!r) throw new Error('timed out waiting for the answer')
       if (r.kind === 'clarify') pending.current = text
       setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', ...r }; return c })
     } catch {
@@ -132,7 +207,7 @@ export default function App() {
     const fd = new FormData(); fd.append('file', f)
     setMsgs(m => [...m, { role: 'a', text: `ingesting ${f.name}…`, trace: [{ step: 'ingest' }] }])
     try {
-      const r = await (await fetch(API + '/ingest/document', { method: 'POST', body: fd })).json()
+      const r = await (await apiFetch('/ingest/document', { method: 'POST', body: fd })).json()
       setMsgs(m => { const c = [...m]; c[c.length - 1] = { role: 'a', kind: 'ingested',
         text: `${r.file} — ${r.total_chunks} chunks (${r.engine})`, trace: [{ step: 'ingest' }] }; return c })
     } catch {}
@@ -150,6 +225,17 @@ export default function App() {
           <div className="text-[15px] font-semibold text-white">TruthGuard Studio</div>
           <div className="text-[11px] text-white/35">self-correcting RAG · 3-plane context memory</div>
         </div>
+        <div className="ml-5 flex gap-1 p-1 rounded-xl border border-white/[0.09] bg-white/[0.02]">
+          {(['chat', 'graph'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className="text-[12.5px] px-3.5 py-1.5 rounded-lg transition"
+              style={view === v ? { background: G, color: '#000', fontWeight: 500 }
+                : { color: 'rgba(255,255,255,0.5)' }}>
+              {v === 'chat' ? 'Chat' : '3D graph'}
+            </button>
+          ))}
+        </div>
+
         <div className="ml-auto flex items-center gap-2.5 text-[12.5px]">
           <a href="/about" className="text-white/40 hover:text-white transition px-2">About</a>
           <a href="/architecture" className="text-white/40 hover:text-white transition px-2">Architecture</a>
@@ -166,8 +252,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 grid grid-cols-[1.25fr_1fr] min-h-0">
-        <div className="flex flex-col min-w-0 border-r border-white/[0.07]">
+      <main className="flex-1 min-h-0 flex flex-col" style={{ display: view === 'chat' ? 'flex' : 'none' }}>
+        <div className="flex flex-col min-w-0 flex-1 mx-auto w-full max-w-[900px]">
           <div ref={scroller} className="flex-1 overflow-y-auto px-6 pt-6 pb-2 flex flex-col gap-4">
             {greeted ? (
               <div className="m-auto text-center max-w-[380px]">
@@ -243,14 +329,26 @@ export default function App() {
           </div>
         </div>
 
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.07]">
-            <span className="text-[12.5px] text-white/70">3-plane graph</span>
-            <span className="ml-auto font-mono text-[11.5px]" style={{ color: G }}>live</span>
-          </div>
-          {IS_LOCAL ? <iframe src={GRAPH} className="flex-1 w-full border-0 bg-black" />
-            : <div className="flex-1 grid place-items-center text-white/25 text-[13px]">graph runs locally</div>}
+      </main>
+
+      {/* Graph page. Kept mounted and hidden rather than unmounted, so switching
+          tabs does not reload the iframe and lose the camera position. */}
+      <main className="flex-1 min-h-0 flex-col" style={{ display: view === 'graph' ? 'flex' : 'none' }}>
+        <div className="flex items-center gap-2.5 px-5 py-2.5 border-b border-white/[0.07]">
+          <span className="text-[13px] text-white/70">3-plane context graph</span>
+          <span className="text-[11.5px] text-white/30">
+            documents above · conversation in the middle · code below — drag to rotate
+          </span>
+          <span className="ml-auto font-mono text-[11.5px]" style={{ color: G }}>
+            {stats.nodes.toLocaleString()} nodes · live
+          </span>
         </div>
+        {HAS_BACKEND
+          ? <iframe src={graphUrl()} className="flex-1 w-full border-0 bg-black" title="3-plane context graph" />
+          : <div className="flex-1 grid place-items-center text-white/25 text-[13px] text-center px-8">
+              No backend connected.<br />
+              <span className="text-[11.5px] text-white/15">open Studio with ?api=&lt;url&gt;&amp;token=&lt;token&gt;</span>
+            </div>}
       </main>
     </div>
   )

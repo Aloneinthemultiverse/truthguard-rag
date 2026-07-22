@@ -140,7 +140,12 @@ def _dual_answer(contradiction: dict, question: str) -> str:
     return "\n".join(lines)
 
 
-def ask(store, llm, question: str, baseline: bool = False, followup: str = None) -> dict:
+def ask(store, llm, question: str, baseline: bool = False, followup: str = None,
+        fast: bool = False) -> dict:
+    """fast=True drops the multi-query interpretation call (one LLM round-trip,
+    ~12-16s on NIM) and retrieves from the question as written. Retrieval recall
+    is slightly lower, so the eval harness leaves it off; interactive callers
+    turn it on because latency is what makes or breaks a live demo."""
     llm.reset_budget()
     trace = []
 
@@ -203,7 +208,7 @@ def ask(store, llm, question: str, baseline: bool = False, followup: str = None)
     from .llm import BudgetExceeded
     for attempt in range(config.MAX_REWRITES + 1):
       try:
-        chunks = retrieve(store, query, llm=llm if attempt == 0 else None)
+        chunks = retrieve(store, query, llm=(None if fast else (llm if attempt == 0 else None)))
         trace.append({"step": "retrieve", "query": query, "n": len(chunks)})
 
         a = assess_mod.assess(store, llm, query, chunks, check_contradictions=(attempt == 0))

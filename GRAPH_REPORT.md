@@ -1,16 +1,16 @@
-# Graph Report — 3204 nodes / 10827 edges
+# Graph Report — 3314 nodes / 11107 edges
 
 ## God nodes — code
 - **main** (53 connections)
-- **getHeaders** (48 connections)
-- **handleResponse** (43 connections)
+- **getHeaders** (52 connections)
+- **handleResponse** (48 connections)
+- **App** (33 connections)
 - **config.py** (32 connections)
-- **App** (31 connections)
 ## God nodes — code_file
 - **learning.js** (42 connections)
-- **progress.js** (36 connections)
-- **auth.js** (34 connections)
-- **App.jsx** (30 connections)
+- **progress.js** (41 connections)
+- **auth.js** (35 connections)
+- **App.jsx** (32 connections)
 - **loop.py** (26 connections)
 ## God nodes — chat
 - **go next** (6 connections)
@@ -39,11 +39,11 @@ y+ layer = ru** (5 connections)
 - **TruthGuard RAG secures unstructured document systems against** (36 connections)
 - ** utilizes Tesseract and Mistral to read complex, high-densit** (27 connections)
 ## God nodes — knowledge
-- **policy_2024.pdf p.1** (12 connections)
-- **policy_2023.pdf p1** (10 connections)
-- **scanned_memo_118.pdf p1** (9 connections)
+- **policy_2024.pdf p.1** (13 connections)
+- **policy_2023.pdf p1** (11 connections)
+- **scanned_memo_118.pdf p1** (10 connections)
 - **TruthGuard_PRD.md p.1** (8 connections)
-- **docs_PROJECT_MASTER.md p.1** (6 connections)
+- **TruthGuard_PRD.md p.1** (8 connections)
 ## God nodes — x_community
 - **Retrieve and analyze the Decision Graph repository using Git** (91 connections)
 - **This cluster contains user queries about verifying AI reason** (25 connections)

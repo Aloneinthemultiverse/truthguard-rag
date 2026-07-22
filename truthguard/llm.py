@@ -32,7 +32,10 @@ class LLM:
         if self.calls >= config.MAX_LLM_CALLS_PER_QUERY:
             raise BudgetExceeded(f"LLM call budget ({config.MAX_LLM_CALLS_PER_QUERY}) exhausted")
         self.calls += 1
-        max_tokens = max(max_tokens * 4, 3000)
+        # Headroom for models that emit reasoning before the answer, but not the
+        # old flat 3000 floor — a 150-token ask does not need a 3000 budget, and
+        # the loop below doubles the budget anyway if a response comes back cut off.
+        max_tokens = max(max_tokens * 2, 1024)
         for attempt in range(3):
             if self.provider == "openai":
                 import time

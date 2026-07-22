@@ -5,9 +5,20 @@ import { BorderBeam } from '@/components/magicui/border-beam'
 import { BehaviorRadar } from '@/components/BehaviorRadar'
 import TextMorph from '@/components/TextMorph'
 import { MCP_CLIENTS } from '@/components/MCPTools'
+import { graphUrl, HAS_BACKEND } from '@/lib/api'
 
-const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
-const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
+/**
+ * Studio needs a backend, which is this laptop behind a Cloudflare tunnel.
+ * The api + token params are read once and cached in localStorage, so the rest
+ * of the site works on plain URLs afterwards.
+ *
+ * Cloudflare quick-tunnel hostnames change every time the tunnel restarts —
+ * when that happens, this is the only line that needs updating.
+ */
+const STUDIO_URL = 'https://truthguard-pink.vercel.app/studio'
+  + '?api=https://mardi-sterling-asylum-press.trycloudflare.com'
+  + '&token=amg8gG-AS1T-ZV5tD0c7Mt8AqdLG1iLb'
+
 
 function Section({ children, className = '' }: any) {
   return <section className={`border-t border-white/[0.06] py-24 ${className}`}>
@@ -88,7 +99,7 @@ export default function About() {
             <a href="#how" className="hover:text-white transition">How it works</a>
             <a href="#results" className="hover:text-white transition">Results</a>
             <a href="/architecture" className="hover:text-white transition">Architecture</a>
-            <a href="/" className="hover:text-white transition">Studio →</a>
+            <a href={STUDIO_URL} className="hover:text-white transition">Studio →</a>
           </div>
         </div>
       </nav>
@@ -120,7 +131,7 @@ export default function About() {
           </BlurFade>
           <BlurFade inView={false} delay={0.24}>
             <div className="flex gap-3 mt-9">
-              <a href="/" className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
+              <a href={STUDIO_URL} className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
               <a href="/architecture" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Read the architecture</a>
             </div>
           </BlurFade>
@@ -247,6 +258,31 @@ export default function About() {
         </BlurFade>
 
         <BlurFade delay={0.1}>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 mt-6">
+            <div className="text-[14.5px] text-white font-medium">LongMemEval — long-horizon memory</div>
+            <div className="text-[12.5px] text-white/35 mt-1 mb-6">
+              Retrieval over long multi-session histories, where the answer sits in a much earlier session.
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[['Retrieval recall@10', 97.2, 'n = 470'], ['QA accuracy', 80.4, 'n = 51']].map(([l, v, n]: any) => (
+                <div key={l} className="rounded-lg border border-white/[0.08] p-5">
+                  <div className="text-[13px] text-white/45 mb-2">{l}</div>
+                  <div className="text-[34px] font-semibold tracking-tight" style={{ color: '#39d2c0' }}>
+                    <NumberTicker value={v} />%
+                  </div>
+                  <div className="text-[12px] text-white/30 mt-1.5 font-mono">{n}</div>
+                </div>
+              ))}
+            </div>
+            <div className="text-[12px] text-white/30 mt-5 pt-4 border-t border-white/[0.06] leading-relaxed">
+              Recall is measured over the full slice; the QA subset is smaller because grading every question
+              costs a judged LLM call per item. Both figures come from <span className="font-mono text-white/45">
+              eval/longmemeval_results.json</span> in the repository.
+            </div>
+          </div>
+        </BlurFade>
+
+        <BlurFade delay={0.1}>
           <h4 className="text-[18px] text-white font-medium mt-12 mb-4">Behavior on the adversarial battery</h4>
           <table className="w-full text-[13.5px] border-collapse">
             <thead><tr className="text-[11.5px] uppercase tracking-wider text-white/35">
@@ -304,9 +340,9 @@ export default function About() {
             <BorderBeam duration={9} size={90} />
             <div className="absolute inset-0 grid place-items-center text-white/25 text-[13px] text-center px-8">
               live 3-plane context graph<br />
-              <span className="text-[11.5px] text-white/15">start the graph server on :7787 to render</span>
+              <span className="text-[11.5px] text-white/15">connect a backend to render it live</span>
             </div>
-            {IS_LOCAL && <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />}
+            {HAS_BACKEND && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
             <div className="absolute inset-x-0 bottom-0 px-5 py-3.5 text-[13px] text-white/50 pointer-events-none"
               style={{ background: 'linear-gradient(transparent,#05070fee 55%)' }}>
               <span className="text-white/80 font-medium">The context graph, live.</span> Documents above,
@@ -400,7 +436,7 @@ export default function About() {
         </div>
         <BlurFade delay={0.2}>
           <div className="flex gap-3 mt-10">
-            <a href="/" className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
+            <a href={STUDIO_URL} className="bg-white text-[#06080e] font-medium px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/90 transition">Open Studio</a>
             <a href="/architecture" className="border border-white/15 text-white/80 px-5 py-2.5 rounded-lg text-[14.5px] hover:bg-white/[0.04] transition">Architecture</a>
           </div>
         </BlurFade>

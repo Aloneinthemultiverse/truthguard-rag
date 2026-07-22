@@ -4,10 +4,9 @@ import { KineticGrid } from '@/components/magicui/kinetic-grid'
 import { ComponentExplorer, COMPONENTS } from '@/components/ComponentExplorer'
 import { ArchMap } from '@/components/ArchMap'
 import { MCPTools } from '@/components/MCPTools'
+import { graphUrl, HAS_BACKEND } from '@/lib/api'
 
 const G = '#3ddc97'          // the only accent
-const IS_LOCAL = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
-const GRAPH = 'http://127.0.0.1:7787/FULL_3plane_clean.html'
 
 /* ─────────────── shared shells ─────────────── */
 function Section({ id, eyebrow, title, lead, children }: any) {
@@ -266,6 +265,63 @@ function PlaneStack() {
   )
 }
 
+/* ─────────────── 6. setup ─────────────── */
+const SETUP: { tab: string; note: string; steps: [string, string][] }[] = [
+  { tab: 'Run locally', note: 'Python 3.10+ and about 2 GB of disk for models and indexes.',
+    steps: [
+      ['git clone https://github.com/Aloneinthemultiverse/truthguard-rag.git\ncd truthguard-rag', 'get the code'],
+      ['pip install -r requirements.txt', 'install dependencies'],
+      ['cp .env.example .env', 'then set LLM_BASE_URL, LLM_API_KEY and LLM_MODEL — any OpenAI-compatible endpoint, including a local Ollama on http://127.0.0.1:11434/v1'],
+      ['python -m truthguard.make_corpus\npython -m truthguard.main ingest', 'build the seeded corpus and the index — zero LLM calls'],
+      ['python -m truthguard.main ask "What is the travel reimbursement limit per trip?"', 'the dual-answer trap: 2023 says $300, 2024 says $500'],
+    ] },
+  { tab: 'Studio', note: 'The web interface, served from the same functions the MCP tools call.',
+    steps: [
+      ['uvicorn truthguard.api:app --port 7788', 'the API and Studio backend'],
+      ['cd studio-ui && npm install && npm run dev', 'the UI on http://127.0.0.1:5178'],
+      ['⚙ → fetch models', 'set the provider key and pick a model from what the provider actually serves'],
+    ] },
+  { tab: 'As MCP', note: 'A plain stdio server — every client that connects shares one graph on disk.',
+    steps: [
+      ['python -m truthguard.mcp_server', 'run it directly to check it starts'],
+      ['claude mcp add truthguard -- python -m truthguard.mcp_server', 'Claude Code — restart and the twelve tools appear'],
+      ['PYTHONPATH=/path/to/truthguard-rag\nTG_STORAGE_DIR=/path/to/truthguard-rag/storage/truthguard', 'set these in the client environment so it works from any folder'],
+    ] },
+  { tab: 'Expose it', note: 'Serving from a laptop. Unset TG_API_TOKEN is local mode with no auth; setting it turns on the gate.',
+    steps: [
+      ['TG_API_TOKEN=<random> uvicorn truthguard.api:app --port 7790', 'every request now needs the token; /config and /ingest return 403'],
+      ['TG_ALLOWED_ORIGINS=https://your.site', 'CORS allowlist — other origins are refused'],
+      ['TG_ALLOW_WRITE=1', 'only if you deliberately want writes back on while exposed'],
+    ] },
+]
+
+function Setup() {
+  const [tab, setTab] = useState(0)
+  const s = SETUP[tab]
+  return (
+    <Panel className="p-6">
+      <div className="flex flex-wrap gap-2 mb-5">
+        {SETUP.map((x, i) => <Btn key={x.tab} on={i === tab} onClick={() => setTab(i)}>{x.tab}</Btn>)}
+      </div>
+      <div className="text-[13px] text-white/45 mb-6">{s.note}</div>
+      <ol className="space-y-4">
+        {s.steps.map(([cmd, why], i) => (
+          <li key={i} className="flex gap-3.5">
+            <span className="font-mono text-[11px] mt-2 shrink-0" style={{ color: G }}>
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <div className="min-w-0 flex-1">
+              <pre className="font-mono text-[12.5px] text-white/80 bg-black/50 border border-white/[0.08]
+                rounded-md px-3.5 py-2.5 overflow-x-auto whitespace-pre">{cmd}</pre>
+              <div className="text-[12.5px] text-white/40 mt-1.5 leading-[1.55]">{why}</div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </Panel>
+  )
+}
+
 /* ─────────────── page ─────────────── */
 export default function Architecture() {
   return (
@@ -286,6 +342,7 @@ export default function Architecture() {
               <a href="#gate" className="hover:text-white transition">The gate</a>
               <a href="#time" className="hover:text-white transition">Time</a>
               <a href="#memory" className="hover:text-white transition">Memory</a>
+              <a href="#setup" className="hover:text-white transition">Setup</a>
               <a href="#mcp" className="hover:text-white transition">MCP</a>
               <a href="/about" className="hover:text-white transition">About →</a>
             </div>
@@ -344,14 +401,20 @@ export default function Architecture() {
           <BlurFade delay={0.1}>
             <div className="relative rounded-xl border border-white/[0.09] overflow-hidden h-[440px] bg-black mt-6">
               <div className="absolute inset-0 grid place-items-center text-white/20 text-[13px] text-center px-8">
-                live graph — start the server on :7787
+                live graph — connect a backend to render it
               </div>
-              {IS_LOCAL && <iframe src={GRAPH} className="relative w-full h-full border-0 block" title="live context graph" />}
+              {HAS_BACKEND && <iframe src={graphUrl()} className="relative w-full h-full border-0 block" title="live context graph" />}
             </div>
           </BlurFade>
         </Section>
 
-        <Section id="mcp" eyebrow="07 · Interface"
+        <Section id="setup" eyebrow="07 · Setup"
+          title="Running it yourself"
+          lead="Clone, install, ingest, ask. The index is built with zero LLM calls, so everything up to the first question is free and offline.">
+          <Setup />
+        </Section>
+
+        <Section id="mcp" eyebrow="08 · Interface"
           title="Twelve tools, any model"
           lead="The whole system is exposed as a stdio MCP server. Any client that speaks MCP — Claude Code, OpenCode, Antigravity, Cursor, Cherry Studio — connects to the same graph on disk and shares the same memory.">
           <MCPTools />

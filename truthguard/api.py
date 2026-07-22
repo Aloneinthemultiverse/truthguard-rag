@@ -18,7 +18,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("TG_STORAGE_DIR", os.path.join(_ROOT, "storage", "truthguard"))
 os.environ.setdefault("TG_CORPUS_DIR", os.path.join(_ROOT, "corpus"))
 
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -27,9 +27,56 @@ from . import config
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# ── public exposure controls ────────────────────────────────────────────────
+# Unset TG_API_TOKEN (the default) means purely local use: no auth, writes on,
+# behaves exactly as before. Setting it switches the server into "exposed" mode
+# for tunnelling: every request needs the token, and writes are off unless
+# explicitly re-enabled. Fail closed, because the graph holds private code and
+# chat transcripts.
+API_TOKEN = os.getenv("TG_API_TOKEN", "").strip()
+EXPOSED = bool(API_TOKEN)
+ALLOW_WRITE = os.getenv("TG_ALLOW_WRITE", "").strip() == "1"
+
+# Routes that mutate state or touch credentials. Blocked when exposed unless
+# TG_ALLOW_WRITE=1 is set deliberately.
+_WRITE_PREFIXES = ("/ingest", "/config")
+
 app = FastAPI(title="TruthGuard Studio API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
-                   allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=(["*"] if not EXPOSED else
+                   [o for o in os.getenv("TG_ALLOWED_ORIGINS", "").split(",") if o]
+                   or ["https://truthguard-pink.vercel.app"]),
+    allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def _guard(request: Request, call_next):
+    if not EXPOSED:
+        return await call_next(request)
+    # CORS preflight carries no credentials by design — let the CORS middleware
+    # answer it, or the browser never gets far enough to send the real request.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path
+    # The token may arrive as a header or a query param — iframes and <script>
+    # loads for the graph view cannot set headers.
+    from_query = request.query_params.get("token", "")
+    supplied = (request.headers.get("x-tg-token") or from_query
+                or request.cookies.get("tg_token", ""))
+    if supplied != API_TOKEN:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if request.method != "GET" and path.startswith(_WRITE_PREFIXES) and not ALLOW_WRITE:
+        return JSONResponse(
+            {"error": "this endpoint is disabled while the server is publicly exposed",
+             "hint": "set TG_ALLOW_WRITE=1 to re-enable"}, status_code=403)
+    resp = await call_next(request)
+    # A graph view loaded with ?token=... fetches its data with a plain relative
+    # request that carries no header, so hand it a cookie to travel on.
+    if from_query == API_TOKEN:
+        resp.set_cookie("tg_token", API_TOKEN, httponly=True,
+                        secure=True, samesite="none", max_age=86400)
+    return resp
 
 _state = {"store": None, "llm": None}
 
@@ -48,6 +95,30 @@ def _llm():
     return _state["llm"]
 
 
+@app.on_event("startup")
+def _warm():
+    """Load the embedder and cross-encoder before the first request.
+
+    Both are lazy, so without this the first question pays ~54s of model
+    loading — exactly the question a judge or a first-time visitor asks.
+    Doing it at startup moves that cost to boot, where nobody is waiting.
+    """
+    import threading
+
+    def warm():
+        try:
+            _store().max_similarity("warmup")          # loads the embedder
+            from .retrieve import _rerank
+            ids = list(_store().by_id)[:1]
+            if ids:
+                _rerank("warmup", [(ids[0], 1.0)], _store())   # loads cross-encoder
+            print("[truthguard] models warm", flush=True)
+        except Exception as e:                          # never block startup
+            print(f"[truthguard] warmup skipped: {e}", flush=True)
+
+    threading.Thread(target=warm, daemon=True).start()
+
+
 def _export():
     try:
         from .full3d import export_full
@@ -60,6 +131,9 @@ class AskBody(BaseModel):
     question: str
     followup: str | None = None
     baseline: bool = False
+    # Interactive callers default to the low-latency path; the eval harness
+    # calls the controller directly and keeps the full retrieval.
+    fast: bool = True
 
 
 @app.post("/ask")
@@ -67,7 +141,7 @@ def ask(body: AskBody):
     from .controller import ask as _ask
     try:
         r = _ask(_store(), _llm(), body.question,
-                 baseline=body.baseline, followup=body.followup)
+                 baseline=body.baseline, followup=body.followup, fast=body.fast)
     except Exception as e:
         msg = ("LLM provider is rate-limited right now (a benchmark may be "
                "running on the same key). Try again in a minute."
@@ -76,6 +150,42 @@ def ask(body: AskBody):
                 "band": None, "citations": [], "trace": [{"step": "llm_unavailable"}]}
     _export()
     return r
+
+
+# ── async ask ───────────────────────────────────────────────────────────────
+# A full /ask takes minutes, and holding one HTTP connection open that long does
+# not survive a consumer link behind a tunnel — the tunnel's control session
+# drops and the request dies with it. So the work runs in a thread and the
+# client polls: every request is short, and a dropped connection costs one poll
+# instead of the whole answer.
+_jobs: dict = {}
+
+
+@app.post("/ask_async")
+def ask_async(body: AskBody):
+    import threading, uuid
+    job_id = uuid.uuid4().hex[:12]
+    _jobs[job_id] = {"status": "running", "result": None}
+
+    def run():
+        try:
+            _jobs[job_id] = {"status": "done", "result": ask(body)}
+        except Exception as e:
+            _jobs[job_id] = {"status": "error",
+                             "result": {"kind": "error", "text": f"{type(e).__name__}: {e}",
+                                        "trace": [{"step": "failed"}], "citations": []}}
+
+    threading.Thread(target=run, daemon=True).start()
+    # Keep the table from growing without bound over a long demo session.
+    if len(_jobs) > 50:
+        for k in list(_jobs)[:-50]:
+            _jobs.pop(k, None)
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.get("/ask_job/{job_id}")
+def ask_job(job_id: str):
+    return _jobs.get(job_id, {"status": "unknown", "result": None})
 
 
 class QueryBody(BaseModel):
@@ -154,6 +264,30 @@ def graph3d():
         {"nodes": [], "links": []})
 
 
+# The graph views used to be served by a separate SimpleHTTPServer on :7787,
+# which exposed the whole project directory. Serving them here instead means
+# one tunnel, and only these files are reachable.
+_GRAPH_VIEWS = {
+    "FULL_3plane_clean.html", "full_3plane_3d.html", "full_everything_3d.html",
+    "graph3d.html", "graph3d_live.html", "unified_dg_3d.html",
+    "context_graph.html", "context_graph_dg.html", "chat_graph_3d.html",
+    "layer_graphs.html", "layers_view.html",
+    # the views fetch this relatively, so it has to resolve under /graph/ too
+    "graph3d_data.json",
+}
+
+
+@app.get("/graph/{name}")
+def graph_view(name: str):
+    if name not in _GRAPH_VIEWS:
+        return JSONResponse({"error": "unknown view", "available": sorted(_GRAPH_VIEWS)},
+                            status_code=404)
+    p = os.path.join(ROOT, name)
+    if not os.path.exists(p):
+        return JSONResponse({"error": f"{name} has not been generated yet"}, status_code=404)
+    return FileResponse(p)
+
+
 @app.get("/stats")
 def stats():
     from .context_graph import ContextGraph
@@ -212,6 +346,25 @@ def get_config():
         "llm_ready": bool(cfg.LLM_API_KEY),
         "ocr_ready": bool(cfg.MISTRAL_OCR_API_KEY),
     }
+
+
+@app.get("/models")
+def list_models(base_url: str = "", api_key: str = ""):
+    """Ask the configured provider what models it serves, so the settings panel
+    can offer a list instead of making the user type an exact id from memory.
+    Falls back to an empty list if the provider does not support /v1/models."""
+    import httpx
+    from . import config as cfg
+    base = (base_url or cfg.LLM_BASE_URL).rstrip("/")
+    key = api_key or cfg.LLM_API_KEY
+    try:
+        r = httpx.get(f"{base}/models", timeout=10,
+                      headers={"Authorization": f"Bearer {key}"} if key else {})
+        data = r.json().get("data", [])
+        names = sorted(m.get("id", "") for m in data if m.get("id"))
+        return {"models": names, "base_url": base}
+    except Exception as e:
+        return {"models": [], "base_url": base, "error": f"{type(e).__name__}: {e}"}
 
 
 @app.post("/config")
