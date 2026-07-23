@@ -15,3 +15,6 @@ studio-ui/public/demo.mp4
 corpus/*.pptx
 corpus/layout-parser-paper-fast.pdf
 .venv-paddle/
+_p*.json
+_p*.log
+_page*.png
