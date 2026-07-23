@@ -85,13 +85,18 @@
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                        INGESTION LAYER                                    │
 │                                                                           │
-│  files (PDF·DOCX·PPTX·XLSX·image·HTML)                                    │
-│    → markitdown → Markdown (single downstream path)                       │
-│    → scan detector ★NEW: page text <50 chars → TWO-TIER OCR ★NEW          │
-│      T1: PaddleOCR local (per-box confidence %; pytesseract fallback)     │
-│      T2: Mistral OCR API — DYNAMIC per-page escalation when T1 fails:     │
-│      conf<0.85 | garbage≥20% | chart/diagram signature | image-heavy      │
-│      → structured MD + figures (reason logged, MAX_TIER2_PAGES cap;       │
+│  files (PDF·DOCX·PPTX·XLSX·ODT·EPUB·HTML·image·MD·TXT)                    │
+│    → office/web via Unstructured-IO (layout-aware: Title→heading,         │
+│      Table→HTML, ListItem→bullet); PDF via pdfplumber                     │
+│    → scan detector: page text <50 chars → TIER-1 OCR LADDER               │
+│      per-page, quality-driven (conf<0.85 | garbage≥20% escalates):        │
+│      Tesseract (fast) → docTR (reading order, poor scans) →               │
+│      PaddleOCR (angle-invariant; runs out-of-process in .venv-paddle)     │
+│      keeps best attempt so a page is never lost                           │
+│    → TIER-2 escalation (opt-in, off by default): a VLM behind an          │
+│      OpenAI-compatible endpoint — dots.ocr / local vision / Mistral —     │
+│      selected by TG_OCR_TIER2; unreachable backend degrades, never fails  │
+│      (reason logged, MAX_TIER2_PAGES cap;                                 │
 │      assess can retro-escalate a page on suspected OCR-error clash)       │
 │    → Figure Asset Store ★NEW: diagrams as first-class assets              │
 │      {asset_id, file, page, bbox, image, understanding_summary,           │
@@ -118,9 +123,10 @@
 
 | Layer | Component | File | Source |
 |---|---|---|---|
-| Ingest | Universal converter | markitdown (pip) | Microsoft |
-| Ingest | Scan detect + two-tier OCR + confidence | `ocr.py` | ★NEW (PaddleOCR T1 / Mistral OCR T2) |
-| Ingest | Figure Asset Store (diagram refs + summaries) | `figures.py` | ★NEW (Mistral OCR) |
+| Ingest | Office/web parser (layout-aware) | Unstructured-IO + `pipeline.py` | pip / ★NEW |
+| Ingest | Tier-1 OCR ladder (Tesseract→docTR→PaddleOCR, per-page) | `ocr.py` + `paddle_worker.py` | ★NEW |
+| Ingest | Tier-2 OCR escalation (pluggable VLM, opt-in) | `ocr.py` | ★NEW (dots.ocr / vision / Mistral) |
+| Ingest | Figure Asset Store (diagram crop + caption + in-figure OCR) | `ocr.py` | ★NEW |
 | Ingest | Code detection (fences + monospace + density) | `chunker.py` | ★NEW |
 | Ingest | Structure-aware chunker + provenance | `chunker.py` | ★NEW |
 | Ingest | Checkpoint/resume | dg-core `ingest.py` pattern | dg-core |
