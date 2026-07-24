@@ -54,7 +54,7 @@ def ingest_project(repo_path: str = None, chat_path: str = None) -> dict:
 
         # 3) code bodies digest (this project + the new repo)
         from . import code_digest
-        report["code_digest"] = code_digest.build([ROOT, repo_path])
+        report["code_digest"] = code_digest.build([ROOT, repo_path], incremental=True)
 
         # 4) every document in the repo -> corpus
         copied = 0

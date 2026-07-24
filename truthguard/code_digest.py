@@ -181,39 +181,118 @@ def _extract_generic(path: str, ext: str) -> list:
     return out
 
 
-def build(repo_roots: list = None) -> dict:
-    roots = repo_roots or [ROOT]
-    symbols = []
+def _file_hash(path: str) -> str:
+    """Content hash — the stale check. A file whose hash is unchanged since the
+    last build has not been touched, so its symbols and (expensive) embeddings
+    are reused verbatim instead of being recomputed."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha1(f.read()).hexdigest()
+    except OSError:
+        return ""
+
+
+def _extract_file(fp: str, fn: str) -> list:
+    """All symbols for one file, tagged with its content hash so staleness can be
+    judged next build. Returns [] for unsupported extensions."""
+    syms = []
+    if fn.endswith(".py"):
+        syms = _extract_symbols(fp) + _extract_rationale(fp)
+    elif fn.endswith(JS_EXTS) and not fn.endswith((".min.js", ".d.ts")):
+        syms = _extract_js(fp) + _extract_rationale(fp)
+    else:
+        ext = os.path.splitext(fn)[1]
+        if ext in _LANG:
+            syms = _extract_generic(fp, ext) + _extract_rationale(fp)
+    if syms:
+        h = _file_hash(fp)
+        for s in syms:
+            s["fhash"] = h
+    return syms
+
+
+def _walk_source(roots: list):
+    """Yield (full_path, filename) for every source file under the roots."""
     for root in roots:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
                            and d not in (".claude", "worktrees")]
             for fn in filenames:
-                fp = os.path.join(dirpath, fn)
-                if fn.endswith(".py"):
-                    symbols.extend(_extract_symbols(fp))
-                    symbols.extend(_extract_rationale(fp))
-                elif fn.endswith(JS_EXTS) and not fn.endswith((".min.js", ".d.ts")):
-                    symbols.extend(_extract_js(fp))
-                    symbols.extend(_extract_rationale(fp))
-                else:
-                    ext = os.path.splitext(fn)[1]
-                    if ext in _LANG:
-                        symbols.extend(_extract_generic(fp, ext))
-                        symbols.extend(_extract_rationale(fp))
-    from sentence_transformers import SentenceTransformer
-    em = SentenceTransformer(config.EMBED_MODEL)
-    # embed name + docstring + body so "what it does" queries match, not just names
-    texts = [f"{s['symbol']} {s['doc']} {s['text'][:600]}" for s in symbols]
-    vecs = em.encode(texts, normalize_embeddings=True, batch_size=64,
-                     show_progress_bar=False)
+                yield os.path.join(dirpath, fn), fn
+
+
+def build(repo_roots: list = None, incremental: bool = False) -> dict:
+    """Build the code digest.
+
+    incremental=True reuses cached symbols and embeddings for files whose
+    content hash is unchanged, re-parsing and re-embedding only the files that
+    changed, were added, or were deleted. Embedding dominates build cost, so
+    skipping unchanged files turns a full rebuild into a per-edit update.
+    """
+    roots = repo_roots or [ROOT]
+    jp = os.path.join(config.STORAGE_DIR, "code_digest.json")
+    vp = os.path.join(config.STORAGE_DIR, "code_digest_vecs.npy")
+
+    # Prior state, keyed by file, so an unchanged file's work can be reused.
+    old_by_file: dict = {}
+    if incremental and os.path.exists(jp) and os.path.exists(vp):
+        old_syms = json.load(open(jp, encoding="utf-8"))
+        old_vecs = np.load(vp)
+        for idx, s in enumerate(old_syms):
+            old_by_file.setdefault(s["file"], []).append((s, old_vecs[idx]))
+
+    symbols: list = []
+    reuse_vecs: list = []          # aligned 1:1 with the symbols they belong to
+    to_embed: list = []            # (position_in_symbols, text) for fresh symbols
+    reparsed = reused = 0
+
+    for fp, fn in _walk_source(roots):
+        rel = os.path.relpath(fp, ROOT).replace("\\", "/")
+        cached = old_by_file.get(rel)
+        cur_hash = _file_hash(fp) if cached else None
+        # Reuse only when the file was seen before AND its content is identical.
+        if cached and cached[0][0].get("fhash") == cur_hash:
+            reused += 1
+            for s, v in cached:
+                symbols.append(s)
+                reuse_vecs.append(v)
+        else:
+            fresh = _extract_file(fp, fn)
+            if fresh:
+                reparsed += 1
+            for s in fresh:
+                to_embed.append((len(symbols), f"{s['symbol']} {s['doc']} {s['text'][:600]}"))
+                symbols.append(s)
+                reuse_vecs.append(None)      # placeholder, filled after embedding
+
+    # Embed only the fresh symbols — the whole point of the incremental path.
+    if to_embed:
+        from sentence_transformers import SentenceTransformer
+        em = SentenceTransformer(config.EMBED_MODEL)
+        fresh_vecs = em.encode([t for _, t in to_embed], normalize_embeddings=True,
+                               batch_size=64, show_progress_bar=False)
+        for (pos, _), v in zip(to_embed, fresh_vecs):
+            reuse_vecs[pos] = np.asarray(v, dtype=np.float32)
+
+    vecs = np.asarray(reuse_vecs, dtype=np.float32) if reuse_vecs \
+        else np.zeros((0, 384), dtype=np.float32)
+
     os.makedirs(config.STORAGE_DIR, exist_ok=True)
-    with open(os.path.join(config.STORAGE_DIR, "code_digest.json"), "w",
-              encoding="utf-8") as f:
+    with open(jp, "w", encoding="utf-8") as f:
         json.dump(symbols, f)
-    np.save(os.path.join(config.STORAGE_DIR, "code_digest_vecs.npy"),
-            np.asarray(vecs, dtype=np.float32))
-    return {"symbols": len(symbols), "files": len({s["file"] for s in symbols})}
+    np.save(vp, vecs)
+
+    global _CACHE
+    _CACHE = None                  # force search() to reload the new digest
+
+    dropped = len([k for k in old_by_file if k not in
+                   {os.path.relpath(fp, ROOT).replace("\\", "/") for fp, _ in _walk_source(roots)}]) \
+        if incremental else 0
+    return {"symbols": len(symbols), "files": len({s["file"] for s in symbols}),
+            "reparsed_files": reparsed, "reused_files": reused,
+            "embedded_symbols": len(to_embed), "dropped_files": dropped,
+            "incremental": incremental}
 
 
 _CACHE = None

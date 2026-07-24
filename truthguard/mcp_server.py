@@ -246,7 +246,7 @@ async def call_tool(name: str, args: dict):
             code_link.CODE_REPO = os.path.basename(os.path.normpath(path))
             code_link._cache.clear()
             from . import code_digest
-            dig = code_digest.build([ROOT, path])   # refresh code BODIES for recall
+            dig = code_digest.build([ROOT, path], incremental=True)   # refresh code BODIES for recall
             _export_live_data()
             tail = (res.stdout or res.stderr).strip().splitlines()[-2:]
             return [types.TextContent(type="text", text=
@@ -366,8 +366,10 @@ def _start_watcher(interval: int = 20):
                 if cur > last:
                     last = cur
                     from . import code_digest
-                    code_digest._CACHE = None
-                    code_digest.build()
+                    # incremental: only the file(s) that changed get re-parsed and
+                    # re-embedded, so the watcher reacts to an edit in ~0.1s
+                    # instead of re-embedding the whole tree every save.
+                    code_digest.build(incremental=True)
                     _export_live_data()
             except Exception:
                 pass
